@@ -12,7 +12,7 @@ export const METHOD_LABEL = {
 };
 
 export const DEFAULT_RULES = {
-  nuzlocke: true, // false = partita libera, senza tracker
+  nuzlocke: true, // false = partita normale: zone, boss e catture restano, senza regole
   dupes: true, // clausola duplicati (per famiglia evolutiva)
   shiny: true, // gli shiny si possono catturare sempre
   giftsFree: false, // i regali non consumano la zona
@@ -94,13 +94,15 @@ export function usedFamilies(run) {
   return s;
 }
 
+const dupesOn = (run) => run.rules.nuzlocke && run.rules.dupes;
+
 export function isDupe(run, sid) {
-  return run.rules.dupes && usedFamilies(run).has(family(sid));
+  return dupesOn(run) && usedFamilies(run).has(family(sid));
 }
 
 /** Specie incontrabili nella zona, con l'indicazione dei duplicati. */
 export function areaEncounters(run, area) {
-  const used = run.rules.dupes ? usedFamilies(run) : new Set();
+  const used = dupesOn(run) ? usedFamilies(run) : new Set();
   return area.enc.map((g) => ({
     method: g.m,
     label: METHOD_LABEL[g.m] || g.m,
@@ -110,7 +112,7 @@ export function areaEncounters(run, area) {
 
 /** Una zona ha ancora un incontro valido se c'è almeno una specie non duplicata. */
 export function areaHasFreshEncounter(run, area) {
-  if (!run.rules.dupes) return true;
+  if (!dupesOn(run)) return true;
   const used = usedFamilies(run);
   return area.enc.some((g) => g.p.some(([sid]) => !used.has(family(sid))));
 }
@@ -122,6 +124,10 @@ export function areaStatus(run, areaId) {
 export function recordCatch(run, areaId, sid, { nick = '', shiny = false, gift = false } = {}) {
   const uid = Math.random().toString(36).slice(2, 10);
   run.mons.push({ uid, sid, nick: nick.trim(), area: areaId, alive: true, caughtAt: Date.now(), shiny });
+  if (!run.rules.nuzlocke) {
+    log(run, `Catturato ${nick.trim() || spName(sid)} (${data.areaById[areaId]?.name})`);
+    return uid; // partita normale: nessuna zona "consumata"
+  }
   const consumes = !(shiny && run.rules.shiny) && !(gift && run.rules.giftsFree);
   if (consumes || !run.areas[areaId]) {
     run.areas[areaId] = { status: 'caught', mon: uid, sid, t: Date.now(), extra: !consumes };
@@ -165,6 +171,11 @@ export function reviveMon(run, uid) {
   }
 }
 
+export function removeMon(run, uid) {
+  run.mons = run.mons.filter((m) => m.uid !== uid);
+  for (const [id, a] of Object.entries(run.areas)) if (a.mon === uid) delete run.areas[id];
+}
+
 export function setEvolution(run, uid, sid) {
   const m = run.mons.find((x) => x.uid === uid);
   if (m) m.sid = sid;
@@ -201,6 +212,7 @@ export function stats(run) {
 
 /** Prossima zona non ancora registrata, nell'ordine di progressione. */
 export function nextOpenArea(run) {
+  if (!run.rules.nuzlocke) return null;
   return data.areas.find((a) => !run.areas[a.id] && a.enc.length);
 }
 

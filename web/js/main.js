@@ -166,7 +166,7 @@ async function persistRun() {
 function updateCapChip() {
   const chip = $('#cap-chip');
   const run = app.run;
-  if (!run || !run.rules.nuzlocke) {
+  if (!run) {
     chip.hidden = true;
     return;
   }
@@ -271,7 +271,8 @@ $('#sheet').addEventListener('click', (e) => {
   const t = e.target.closest('[data-tab]');
   if (t) {
     sheet.tab = t.dataset.tab;
-    sheet.stack = [{ title: 'Nuzlocke', view: trackerView }];
+    sheet.tabs = trackerTabs();
+    sheet.stack = [{ title: 'Strumenti', view: trackerView }];
     render();
   }
 });
@@ -309,18 +310,21 @@ const typesHtml = (sid) => {
 
 // ---------------------------------------------------------------- tracker
 
-const TRACKER_TABS = [
-  ['zone', 'Zone'],
-  ['team', 'Squadra'],
-  ['grave', 'Cimitero'],
-  ['boss', 'Boss'],
-  ['rules', 'Regole'],
-];
+// Gli strumenti funzionano in ogni partita; le regole Nuzlocke aggiungono solo vincoli e cimitero.
+function trackerTabs() {
+  const nz = app.run?.rules.nuzlocke;
+  return [
+    ['zone', 'Zone'],
+    ['team', nz ? 'Squadra' : 'Catturati'],
+    ...(nz ? [['grave', 'Cimitero']] : []),
+    ['boss', 'Boss'],
+    ['rules', 'Partita'],
+  ];
+}
 
 function openTracker(tab) {
   if (!app.run) return;
-  if (!app.run.rules.nuzlocke && tab !== 'rules') tab = 'rules';
-  openSheet('Nuzlocke', trackerView, TRACKER_TABS, tab);
+  openSheet('Strumenti', trackerView, trackerTabs(), tab);
 }
 
 function trackerView(body) {
@@ -329,14 +333,21 @@ function trackerView(body) {
 
 function zonesView(body) {
   const run = app.run;
+  const nz = run.rules.nuzlocke;
   const st = N.stats(run);
   const next = N.nextOpenArea(run);
+  const byArea = {};
+  for (const m of run.mons) byArea[m.area] = (byArea[m.area] || 0) + 1;
   body.innerHTML = `
-    <div class="stats">
-      <div class="stat"><b>${st.alive}</b><small>Vivi</small></div>
+    <div class="stats">${
+      nz
+        ? `<div class="stat"><b>${st.alive}</b><small>Vivi</small></div>
       <div class="stat"><b>${st.dead}</b><small>Caduti</small></div>
-      <div class="stat"><b>${st.visited}/${st.total}</b><small>Zone</small></div>
-    </div>
+      <div class="stat"><b>${st.visited}/${st.total}</b><small>Zone</small></div>`
+        : `<div class="stat"><b>${st.caught}</b><small>Catturati</small></div>
+      <div class="stat"><b>${Object.keys(byArea).length}</b><small>Zone</small></div>
+      <div class="stat"><b>${run.capIndex}/${app.data.caps.length}</b><small>Boss</small></div>`
+    }</div>
     <input type="search" id="zone-search" placeholder="Cerca zona o Pokémon…">
     <div class="section-title">Zone in ordine di progressione</div>
     <div class="list" id="zone-list"></div>`;
@@ -354,6 +365,11 @@ function zonesView(body) {
         const fresh = N.areaHasFreshEncounter(run, a);
         let status = '';
         let sub = `${a.enc.reduce((n, g) => n + g.p.length, 0)} specie`;
+        if (!nz) {
+          const n = byArea[a.id];
+          if (n) status = `<span class="status caught">${n} ${n === 1 ? 'catturato' : 'catturati'}</span>`;
+          return `<div class="item" data-area="${a.id}"><div class="main"><b>${esc(a.name)}</b><small>${sub}</small></div>${status}</div>`;
+        }
         if (rec?.status === 'caught') {
           const m = run.mons.find((x) => x.uid === rec.mon);
           status = `<span class="status ${m && !m.alive ? 'dead' : 'caught'}">${m && !m.alive ? 'Caduto' : 'Catturato'}</span>`;
@@ -386,8 +402,9 @@ function zonesView(body) {
 
 function areaView(body, areaId) {
   const run = app.run;
+  const nz = run.rules.nuzlocke;
   const area = app.data.areaById[areaId];
-  const rec = run.areas[areaId];
+  const rec = nz ? run.areas[areaId] : null;
   const groups = N.areaEncounters(run, area);
   let selected = null;
 
@@ -400,7 +417,7 @@ function areaView(body, areaId) {
 
   body.innerHTML = `
     ${recHtml()}
-    <p class="hint">${rec ? 'La zona è già registrata. Puoi comunque aggiungere uno shiny o un regalo, se le regole lo consentono.' : 'Tocca il Pokémon che hai incontrato per primo.'}</p>
+    <p class="hint">${!nz ? 'Specie che puoi trovare qui. Tocca un Pokémon per segnarlo tra i catturati.' : rec ? 'La zona è già registrata. Puoi comunque aggiungere uno shiny o un regalo, se le regole lo consentono.' : 'Tocca il Pokémon che hai incontrato per primo.'}</p>
     ${groups
       .map(
         (g) => `<div class="enc-group"><h4>${esc(g.label)}</h4><div class="mon-grid">${g.mons
@@ -414,13 +431,13 @@ function areaView(body, areaId) {
       .join('')}
     <div class="card" id="catch-form" hidden>
       <div class="field"><label>Soprannome (facoltativo)</label><input type="text" id="nick" maxlength="12" autocomplete="off"></div>
-      <div class="toggle" id="shiny-t"><div class="main"><b>È shiny</b><small>${run.rules.shiny ? 'Non consuma la zona' : 'Clausola shiny disattivata'}</small></div><div class="switch"></div></div>
+      <div class="toggle" id="shiny-t"><div class="main"><b>È shiny</b><small>${!nz ? 'Viene segnato con ✦' : run.rules.shiny ? 'Non consuma la zona' : 'Clausola shiny disattivata'}</small></div><div class="switch"></div></div>
       <div class="dialog-actions">
-        <button class="btn" id="btn-fail">Perso</button>
-        <button class="btn primary" id="btn-catch">Catturato</button>
+        ${nz ? '<button class="btn" id="btn-fail">Perso</button>' : ''}
+        <button class="btn primary" id="btn-catch">${nz ? 'Catturato' : 'Aggiungi ai catturati'}</button>
       </div>
     </div>
-    ${rec ? '' : '<button class="btn block" id="btn-skip" style="margin-top:8px">Salta zona (nessun incontro valido)</button>'}`;
+    ${rec || !nz ? '' : '<button class="btn block" id="btn-skip" style="margin-top:8px">Salta zona (nessun incontro valido)</button>'}`;
 
   const form = $('#catch-form', body);
   on(body, '.mon', 'click', (e, el) => {
@@ -428,7 +445,7 @@ function areaView(body, areaId) {
     el.classList.add('sel');
     selected = { sid: Number(el.dataset.sid), method: el.dataset.method, dupe: el.classList.contains('dupe') };
     form.hidden = false;
-    $('#btn-fail', body).hidden = !!rec;
+    if ($('#btn-fail', body)) $('#btn-fail', body).hidden = !!rec;
     form.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
     if (selected.dupe) toast('Duplicato: di solito si ignora e si aspetta un altro incontro');
   });
@@ -444,8 +461,9 @@ function areaView(body, areaId) {
     N.recordCatch(run, areaId, selected.sid, { nick: $('#nick', body).value, shiny, gift });
     await persistRun();
     popView();
+    if (!nz) toast(`${N.spName(selected.sid)} aggiunto ai catturati`);
   });
-  $('#btn-fail', body).addEventListener('click', async () => {
+  $('#btn-fail', body)?.addEventListener('click', async () => {
     N.recordFail(run, areaId, selected?.sid);
     await persistRun();
     popView();
@@ -471,10 +489,11 @@ function monRow(m) {
 }
 
 function teamView(body) {
+  const nz = app.run.rules.nuzlocke;
   const alive = app.run.mons.filter((m) => m.alive);
   body.innerHTML = alive.length
-    ? `<p class="hint">Tutti i Pokémon vivi della run. Tocca per segnare una caduta o un'evoluzione.</p><div class="list">${alive.map(monRow).join('')}</div>`
-    : '<p class="empty">Nessun Pokémon catturato. Registra le catture dalla scheda Zone.</p>';
+    ? `<p class="hint">${nz ? "Tutti i Pokémon vivi della run. Tocca per segnare una caduta o un'evoluzione." : "I Pokémon che hai segnato. Tocca per vedere statistiche ed evoluzioni."}</p><div class="list">${alive.map(monRow).join('')}</div>`
+    : '<p class="empty">Nessun Pokémon segnato. Aggiungili dalla scheda Zone.</p>';
   on(body, '[data-uid]', 'click', (e, el) => {
     const m = app.run.mons.find((x) => x.uid === el.dataset.uid);
     pushView(m.nick || N.spName(m.sid), (b) => monView(b, m.uid));
@@ -494,7 +513,7 @@ function monView(body, uid) {
       <small>Catturato a ${esc(app.data.areaById[m.area]?.name || '?')}</small></div>
     <div class="field"><label>Soprannome</label><input type="text" id="nick" maxlength="12" value="${esc(m.nick)}"></div>
     ${evos.length ? `<div class="section-title">Evoluzione</div><div class="row wrap">${evos.map(([id]) => `<button class="btn small" data-evo="${id}">→ ${esc(N.spName(id))}</button>`).join('')}</div>` : ''}
-    ${m.alive ? `
+    ${!run.rules.nuzlocke ? '<button class="btn block danger" id="btn-remove">Rimuovi dalla lista</button>' : m.alive ? `
       <div class="section-title">Caduta</div>
       <div class="field"><label>Causa (facoltativa)</label><input type="text" id="cause" placeholder="${esc(cap?.label || 'Allenatore o Pokémon selvatico')}"></div>
       <button class="btn block danger" id="btn-dead">È caduto</button>` : `<button class="btn block" id="btn-revive">Riporta in vita (correzione)</button>`}
@@ -514,6 +533,11 @@ function monView(body, uid) {
     await persistRun();
     popView();
     toast('Riposa in pace.');
+  });
+  $('#btn-remove', body)?.addEventListener('click', async () => {
+    N.removeMon(run, uid);
+    await persistRun();
+    popView();
   });
   $('#btn-revive', body)?.addEventListener('click', async () => {
     N.reviveMon(run, uid);
@@ -589,9 +613,10 @@ function rulesView(body) {
   const r = run.rules;
   const ENF = [['allow', 'Libero'], ['warn', 'Conta'], ['block', 'Bloccato']];
   body.innerHTML = `
-    <div class="field"><label>Nome della run</label><input type="text" id="run-name" value="${esc(run.name)}"></div>
-    ${toggleHtml('nuzlocke', r.nuzlocke, 'Modalità Nuzlocke', 'Disattiva per una partita libera senza tracker')}
-    <div class="section-title">Clausole</div>
+    <div class="field"><label>Nome della partita</label><input type="text" id="run-name" value="${esc(run.name)}"></div>
+    ${toggleHtml('nuzlocke', r.nuzlocke, 'Regole Nuzlocke', 'Una cattura per zona, clausole e cimitero')}
+    <p class="hint">Zone, boss, level cap e catturati funzionano in ogni caso: le regole aggiungono solo i vincoli.</p>
+    ${r.nuzlocke ? `<div class="section-title">Clausole</div>
     ${toggleHtml('dupes', r.dupes, 'Clausola duplicati', 'Le famiglie già catturate vengono segnalate')}
     ${toggleHtml('shiny', r.shiny, 'Clausola shiny', 'Uno shiny si può sempre catturare')}
     ${toggleHtml('giftsFree', r.giftsFree, 'Regali liberi', 'Regali e statici non consumano la zona')}
@@ -600,7 +625,7 @@ function rulesView(body) {
     <p class="hint">"Conta" lo consente ma registra ogni ricaricamento (finora: ${run.counters.loads}).</p>
     <div class="section-title">Riavvolgimento</div>
     ${segHtml('rewind', r.rewind, ENF)}
-    <p class="hint">Riavvolgimenti registrati: ${run.counters.rewinds}.</p>
+    <p class="hint">Riavvolgimenti registrati: ${run.counters.rewinds}.</p>` : ''}
     <div class="section-title">Variante dei rivali</div>
     <div class="row">
       <select id="v-rival"><option value="">Rivale: tutti</option><option>Brendan</option><option>May</option></select>
@@ -619,9 +644,14 @@ function rulesView(body) {
     await save();
   });
   on(body, '[data-toggle]', 'click', async (e, el) => {
-    r[el.dataset.toggle] = !r[el.dataset.toggle];
-    el.classList.toggle('on', r[el.dataset.toggle]);
+    const key = el.dataset.toggle;
+    r[key] = !r[key];
+    el.classList.toggle('on', r[key]);
     await save();
+    if (key === 'nuzlocke') {
+      sheet.tabs = trackerTabs(); // compare o sparisce il cimitero
+      render();
+    }
   });
   on(body, '[data-seg] button', 'click', async (e, el) => {
     const key = el.parentElement.dataset.seg;
@@ -714,7 +744,7 @@ async function menuView(body) {
     <div class="section-title">Partite</div>
     <div class="list">${runs
       .map(
-        (r) => `<div class="item" data-run="${r.id}"><div class="main"><b>${esc(r.name)}</b><small>${r.nuzlocke ? 'Nuzlocke' : 'Partita libera'} · ${new Date(r.updated).toLocaleDateString('it-IT')}</small></div>
+        (r) => `<div class="item" data-run="${r.id}"><div class="main"><b>${esc(r.name)}</b><small>${r.nuzlocke ? 'Nuzlocke' : 'Partita normale'} · ${new Date(r.updated).toLocaleDateString('it-IT')}</small></div>
         ${app.run?.id === r.id ? '<span class="status current">In corso</span>' : ''}</div>`,
       )
       .join('')}</div>
@@ -781,7 +811,7 @@ async function runView(body, id) {
   const active = app.run?.id === id;
   body.innerHTML = `
     <div class="card"><b style="font-size:18px">${esc(meta.name)}</b><br>
-      <small>${meta.rules.nuzlocke ? `Nuzlocke · ${st.alive} vivi, ${st.dead} caduti · cap ${meta.capIndex}/${app.data.caps.length}` : 'Partita libera'}</small></div>
+      <small>${meta.rules.nuzlocke ? `Nuzlocke · ${st.alive} vivi, ${st.dead} caduti` : `Partita normale · ${st.caught} catturati`} · boss ${meta.capIndex}/${app.data.caps.length}</small></div>
     ${active ? '<p class="hint">Questa è la partita in corso.</p>' : '<button class="btn primary block" id="btn-play">Gioca questa partita</button>'}
     <button class="btn block danger" id="btn-del" style="margin-top:8px">Elimina partita</button>
     <p class="hint">Eliminando la partita si cancellano anche il suo salvataggio di gioco e gli stati rapidi.</p>`;
@@ -809,13 +839,22 @@ function newRunView(opts = {}, body) {
   const draw = (b) => {
     const rules = { ...N.DEFAULT_RULES };
     b.innerHTML = `
-      ${opts.first ? '<p class="hint">Crea la tua prima partita. Ogni partita ha il suo salvataggio e il suo tracker, così puoi avere più run in parallelo.</p>' : ''}
-      <div class="field"><label>Nome</label><input type="text" id="nr-name" value="Nuzlocke ${new Date().toLocaleDateString('it-IT')}"></div>
-      ${toggleHtml('nuzlocke', true, 'Modalità Nuzlocke', 'Tracker, clausole e level cap')}
-      ${toggleHtml('strict', false, 'Regole rigide', 'Blocca caricamento stati e riavvolgimento')}
-      <p class="hint">Tutte le regole si possono cambiare dopo, dalla scheda Regole.</p>
+      ${opts.first ? '<p class="hint">Crea la tua prima partita. Ogni partita ha il suo salvataggio e i suoi dati, così puoi averne più di una in parallelo.</p>' : ''}
+      <div class="field"><label>Nome</label><input type="text" id="nr-name" value="Nuzlocke ${new Date().toLocaleDateString('it-IT')}" data-auto="1"></div>
+      ${toggleHtml('nuzlocke', true, 'Regole Nuzlocke', 'Una cattura per zona, clausole e cimitero')}
+      <div id="strict-wrap">${toggleHtml('strict', false, 'Regole rigide', 'Blocca caricamento stati e riavvolgimento')}</div>
+      <p class="hint">Zone, boss, level cap e catturati sono sempre disponibili dall'icona verde in alto. Tutto si può cambiare dopo, dalla scheda Partita.</p>
       <button class="btn primary block" id="nr-go">Inizia</button>`;
-    on(b, '[data-toggle]', 'click', (e, el) => el.classList.toggle('on'));
+    $('#nr-name', b).addEventListener('input', (e) => delete e.target.dataset.auto);
+    on(b, '[data-toggle]', 'click', (e, el) => {
+      el.classList.toggle('on');
+      if (el.dataset.toggle === 'nuzlocke') {
+        const on = el.classList.contains('on');
+        $('#strict-wrap', b).hidden = !on;
+        const name = $('#nr-name', b);
+        if (name.dataset.auto) name.value = `${on ? 'Nuzlocke' : 'Partita'} ${new Date().toLocaleDateString('it-IT')}`;
+      }
+    });
     $('#nr-go', b).addEventListener('click', async () => {
       const nz = $('[data-toggle="nuzlocke"]', b).classList.contains('on');
       const strict = $('[data-toggle="strict"]', b).classList.contains('on');
@@ -828,7 +867,7 @@ function newRunView(opts = {}, body) {
       $('#sheet').hidden = true;
       sheet.stack = [];
       app.emu.resume();
-      toast(nz ? 'Run iniziata. Il tracker è sull’icona verde in alto.' : 'Buon divertimento!', 3500);
+      toast('Partita iniziata. Gli strumenti sono sull’icona verde in alto.', 3500);
     });
   };
   if (body) draw(body);
