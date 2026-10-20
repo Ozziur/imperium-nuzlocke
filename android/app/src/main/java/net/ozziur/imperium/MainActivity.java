@@ -4,6 +4,8 @@ import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
 import android.util.Base64;
 import android.view.View;
 import android.view.WindowInsets;
@@ -44,6 +46,7 @@ public class MainActivity extends ComponentActivity {
     private WebView webView;
     private ValueCallback<Uri[]> pendingFileCallback;
     private byte[] pendingExport;
+    private Vibrator vibrator;
 
     private final ActivityResultLauncher<String[]> openDocument =
             registerForActivityResult(new ActivityResultContracts.OpenDocument(), uri -> {
@@ -74,6 +77,7 @@ public class MainActivity extends ComponentActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        vibrator = getSystemService(Vibrator.class);
 
         webView = new WebView(this);
         webView.setBackgroundColor(0xFF0F1412);
@@ -183,9 +187,17 @@ public class MainActivity extends ComponentActivity {
             runOnUiThread(() -> createDocument.launch(fileName));
         }
 
+        /** Feedback aptico dei tasti: 0 = tocco leggero, 1 = clic (A/B). */
+        @JavascriptInterface
+        public void haptic(int kind) {
+            if (vibrator == null || !vibrator.hasVibrator()) return;
+            vibrator.vibrate(VibrationEffect.createPredefined(
+                    kind == 1 ? VibrationEffect.EFFECT_CLICK : VibrationEffect.EFFECT_TICK));
+        }
+
         @JavascriptInterface
         public String version() {
-            return "0.1.0";
+            return "0.2.0";
         }
     }
 

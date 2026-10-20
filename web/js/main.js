@@ -121,7 +121,7 @@ async function enterGame(firstTime = false) {
   $('#setup').hidden = true;
   $('#game').hidden = false;
   hideBoot();
-  app.controls ??= setupControls($('#pad'), app.emu, { haptics: app.settings.haptics });
+  app.controls ??= setupControls($('#pad'), app.emu, { haptics: () => app.settings.haptics });
   bindTopbar();
 
   let runId = await kv.get('active-run');
@@ -147,6 +147,7 @@ async function startRun(run) {
   app.emu.setSpeed(1);
   updateSpeedBadge();
   updateCapChip();
+  updateInfo();
 }
 
 /** Il core carica un solo gioco per sessione: per cambiare run salva tutto e ricarica la pagina. */
@@ -161,6 +162,7 @@ async function switchRun(runId, { flush = true } = {}) {
 async function persistRun() {
   if (app.run) await N.saveRun(app.run);
   updateCapChip();
+  updateInfo();
 }
 
 function updateCapChip() {
@@ -267,6 +269,8 @@ function render() {
 
 $('#sheet').addEventListener('click', (e) => {
   if (e.target.id === 'sheet') return closeSheet();
+  const mv = e.target.closest('.move');
+  if (mv) return mv.classList.toggle('open');
   if (e.target.closest('[data-action="close"]')) return popView() || closeSheet();
   const t = e.target.closest('[data-tab]');
   if (t) {
@@ -307,6 +311,54 @@ const typesHtml = (sid) => {
   const s = N.sp(sid);
   return s ? `<span class="types">${s.t.map((t) => `<span class="type t-${t}">${t}</span>`).join('')}</span>` : '';
 };
+
+const CAT = ['Fisico', 'Speciale', 'Stato'];
+
+/** Riga di una mossa: tipo, categoria e statistiche; tocca per la descrizione. */
+function moveHtml(idOrName, level = null) {
+  const id = typeof idOrName === 'number' ? idOrName : app.data.moveIdByName(idOrName);
+  const m = app.data.moves[id];
+  if (!m) return `<div class="move"><div class="mv-top"><b>${esc(idOrName)}</b></div></div>`;
+  const [name, type, cat, pow, acc, pp, desc] = m;
+  return `<div class="move"><div class="mv-top">${level != null ? `<span class="mv-lv">${level ? `Lv. ${level}` : 'Evo'}</span>` : ''}<b>${esc(name)}</b><span class="type t-${type}">${type}</span><span class="cat c${cat}">${CAT[cat] || ''}</span></div>
+    <div class="mv-stats">Potenza ${pow || '—'} · Precisione ${acc ? acc + '%' : '—'} · PP ${pp}</div>
+    <div class="mv-desc">${esc(desc)}</div></div>`;
+}
+
+// ---------------------------------------------------------------- pannello informativo
+
+function updateInfo() {
+  const el = $('#info');
+  const run = app.run;
+  if (!run) {
+    el.hidden = true;
+    return;
+  }
+  el.hidden = false;
+  const caps = app.data.caps;
+  const done = run.capIndex >= caps.length;
+  const cap = N.currentCap(run);
+  const teams = done ? [] : N.bossTeams(run, cap);
+  const types = [...new Set(teams.flatMap((t) => t.mons.flatMap((m) => (m.sid ? N.sp(m.sid)?.t || [] : []))))];
+  const rows = [
+    `<div class="ir" data-go="boss"><span class="lbl">Boss</span><span class="val">${done ? 'Lega superata' : `${esc(cap.label)} <small>· cap ${cap.level}</small>`}</span></div>`,
+  ];
+  if (types.length) rows.push(`<div class="ir" data-go="boss"><span class="lbl">Tipi</span><span class="types">${types.map((t) => `<span class="type t-${t}">${t}</span>`).join('')}</span></div>`);
+  if (run.rules.nuzlocke) {
+    const st = N.stats(run);
+    const next = N.nextOpenArea(run);
+    rows.push(`<div class="ir" data-go="zone"><span class="lbl">Zona</span><span class="val">${next ? esc(next.name) : 'Tutte registrate'} <small>· ${st.alive} vivi, ${st.dead} caduti</small></span></div>`);
+  } else {
+    const last = run.mons[run.mons.length - 1];
+    rows.push(`<div class="ir" data-go="team"><span class="lbl">Catturati</span><span class="val">${run.mons.length}${last ? ` <small>· ultimo: ${esc(last.nick || N.spName(last.sid))}</small>` : ''}</span></div>`);
+  }
+  el.innerHTML = rows.join('');
+}
+
+$('#info').addEventListener('click', (e) => {
+  app.emu.resumeAudio();
+  openTracker(e.target.closest('[data-go]')?.dataset.go || 'boss');
+});
 
 // ---------------------------------------------------------------- tracker
 
@@ -424,7 +476,7 @@ function areaView(body, areaId) {
           .map(
             (m) => `<div class="mon ${m.dupe ? 'dupe' : ''}" data-sid="${m.sid}" data-method="${g.method}">
               <b>${esc(N.spName(m.sid))}</b>${typesHtml(m.sid)}
-              <span class="lv">${m.lv ? `Lv. ${m.lv}` : ''}${m.dupe ? ' <span class="tag">duplicato</span>' : ''}</span></div>`,
+              <span class="lv">${[m.lv && `Lv. ${m.lv}`, m.pct != null && `<b>${m.pct}%</b>`].filter(Boolean).join(' · ')}${m.dupe ? ' <span class="tag">duplicato</span>' : ''}</span></div>`,
           )
           .join('')}</div></div>`,
       )
@@ -517,7 +569,8 @@ function monView(body, uid) {
       <div class="section-title">Caduta</div>
       <div class="field"><label>Causa (facoltativa)</label><input type="text" id="cause" placeholder="${esc(cap?.label || 'Allenatore o Pokémon selvatico')}"></div>
       <button class="btn block danger" id="btn-dead">È caduto</button>` : `<button class="btn block" id="btn-revive">Riporta in vita (correzione)</button>`}
-    <div class="dialog-actions"><button class="btn primary" id="btn-save">Salva</button></div>`;
+    <div class="dialog-actions"><button class="btn primary" id="btn-save">Salva</button></div>
+    ${s?.m?.length ? `<div class="section-title">Mosse per livello</div><p class="hint">Tocca una mossa per la descrizione.</p><div class="moves">${s.m.map(([id, lv]) => moveHtml(id, lv)).join('')}</div>` : ''}`;
   on(body, '[data-evo]', 'click', async (e, el) => {
     N.setEvolution(run, uid, Number(el.dataset.evo));
     await persistRun();
@@ -595,7 +648,7 @@ function teamHtml(t) {
         (m) => `<div class="boss-mon"><div class="top"><b>${esc(m.sp)}</b>${m.sid ? typesHtml(m.sid) : ''}<span class="grow"></span><small>${lvl(m.lv)}</small></div>
         ${m.mega ? `<div class="mega">Megaevolve: ${esc(m.mega)}</div>` : ''}
         <div class="meta">${[m.item && `@ ${esc(m.item)}`, m.ab && esc(m.ab), m.nat && esc(m.nat)].filter(Boolean).join(' · ')}</div>
-        ${m.mv?.length ? `<div class="moves">${m.mv.map((x) => `<span>${esc(x)}</span>`).join('')}</div>` : ''}</div>`,
+        ${m.mv?.length ? `<div class="moves">${m.mv.map((x) => moveHtml(x)).join('')}</div>` : ''}</div>`,
       )
       .join('')}`;
 }
@@ -795,7 +848,6 @@ async function menuView(body) {
     app.settings.haptics = !app.settings.haptics;
     el.classList.toggle('on', app.settings.haptics);
     await kv.set('settings', app.settings);
-    toast('Vale dal prossimo avvio');
   });
   $('#vol', body).addEventListener('change', async (e) => {
     app.settings.volume = Number(e.target.value);

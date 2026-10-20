@@ -28,6 +28,10 @@ export async function loadData() {
   const res = await fetch('data/imperium.json');
   data = await res.json();
   data.areaById = Object.fromEntries(data.areas.map((a, i) => [a.id, { ...a, index: i }]));
+  const norm = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+  data.moveByName = {};
+  for (const [id, m] of Object.entries(data.moves)) data.moveByName[norm(m[0])] = Number(id);
+  data.moveIdByName = (name) => data.moveByName[norm(name)];
   return data;
 }
 
@@ -106,7 +110,7 @@ export function areaEncounters(run, area) {
   return area.enc.map((g) => ({
     method: g.m,
     label: METHOD_LABEL[g.m] || g.m,
-    mons: g.p.map(([sid, lv]) => ({ sid, lv, dupe: used.has(family(sid)) })),
+    mons: g.p.map(([sid, lv, pct]) => ({ sid, lv, pct, dupe: used.has(family(sid)) })),
   }));
 }
 

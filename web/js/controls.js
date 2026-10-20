@@ -2,9 +2,11 @@
 
 const DIRS = ['Up', 'Down', 'Left', 'Right'];
 
-function haptic(ms = 8) {
+// Vibrazione breve: nell'app usa gli effetti predefiniti di Android, nel browser la Vibration API.
+function haptic(strong = false) {
   try {
-    navigator.vibrate?.(ms);
+    if (window.AndroidBridge?.haptic) window.AndroidBridge.haptic(strong ? 1 : 0);
+    else navigator.vibrate?.(strong ? 14 : 8);
   } catch {
     /* ignora */
   }
@@ -19,7 +21,8 @@ export function setupControls(root, emu, opts = {}) {
     counts.set(btn, n);
     if (n === 1) {
       emu.press(btn);
-      if (opts.haptics !== false) haptic();
+      const on = typeof opts.haptics === 'function' ? opts.haptics() : opts.haptics !== false;
+      if (on) haptic(btn === 'A' || btn === 'B');
       root.querySelectorAll(`[data-btn="${btn}"], [data-dir="${btn}"]`).forEach((el) => el.classList.add('on'));
     }
   };

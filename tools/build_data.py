@@ -23,6 +23,7 @@ abilities = load("raw_abilities.json")
 const = load("raw_species_const.json")
 wild = load("raw_wild.json")
 sets = load("raw_sets.json")
+moves = load("raw_moves.json")
 
 TYPES = ["???", "Normale", "Lotta", "Volante", "Veleno", "Terra", "Roccia", "Coleottero", "Spettro",
          "Acciaio", "???", "Fuoco", "Acqua", "Erba", "Elettro", "Psico", "Ghiaccio", "Drago", "Buio",
@@ -99,6 +100,7 @@ for sid, sp in by_id.items():
         "d": sp["dexId"],
         "f": find(sp["dexId"]),
         "e": [[e[1], e[2]] for e in (sp.get("evolutions") or []) if e[1] in by_id],
+        "m": [[mv, lvl] for mv, lvl in (sp.get("levelUpMoves") or []) if str(mv) in moves],
     }
 
 name_index = {}
@@ -186,6 +188,20 @@ def lv(mn, mx):
     return str(mn) if mn == mx else f"{mn}-{mx}"
 
 
+RATES = {f["type"]: f["encounter_rates"] for f in wild[0]["fields"]}
+
+
+def add(enc, meth, sid, mn, mx, rate):
+    """Somma le probabilità degli slot della stessa specie e allarga l'intervallo di livello."""
+    cur = enc[meth].get(sid)
+    if cur:
+        cur[0] = min(cur[0], mn)
+        cur[1] = max(cur[1], mx)
+        cur[2] += rate
+    else:
+        enc[meth][sid] = [mn, mx, rate]
+
+
 areas = []
 for idx, (name, sheet_mons) in enumerate(sheet_areas):
     mid = map_id(name)
@@ -193,35 +209,38 @@ for idx, (name, sheet_mons) in enumerate(sheet_areas):
     if mid in wild_by_map:
         for e in wild_by_map[mid][:1]:  # Altering Cave ha varianti: si usa la prima
             for key, meth in WILD_KEYS:
-                for m in (e.get(key) or {}).get("mons", []):
+                for i, m in enumerate((e.get(key) or {}).get("mons", [])):
                     sid = const.get(m["species"])
                     if sid in out_species:
-                        enc[meth].setdefault(sid, lv(m["min_level"], m["max_level"]))
+                        add(enc, meth, sid, m["min_level"], m["max_level"], RATES[key][i])
             fish = (e.get("fishing_mons") or {}).get("mons", [])
             for rod, slots in FISH_GROUPS.items():
-                for s in slots:
-                    if s < len(fish):
-                        sid = const.get(fish[s]["species"])
+                for slot in slots:
+                    if slot < len(fish):
+                        sid = const.get(fish[slot]["species"])
                         if sid in out_species:
-                            enc[ROD[rod]].setdefault(sid, lv(fish[s]["min_level"], fish[s]["max_level"]))
+                            add(enc, ROD[rod], sid, fish[slot]["min_level"], fish[slot]["max_level"], RATES["fishing_mons"][slot])
         # regali e incontri speciali vengono solo dal foglio
         for meth, nm in sheet_mons:
             if meth == "gift":
                 sid = resolve(nm)
                 if sid:
-                    enc["gift"].setdefault(sid, "")
+                    enc["gift"].setdefault(sid, None)
     else:
         for meth, nm in sheet_mons:
             sid = resolve(nm)
             if sid:
                 # zone senza incontri selvatici: le voci del foglio sono regali, uova o scelte
-                enc["gift"].setdefault(sid, "")
+                enc["gift"].setdefault(sid, None)
     order = ["land", "surf", "old", "good", "super", "rock", "gift"]
     areas.append({
         "id": norm(name).lower(),
         "name": name.replace("Entrace", "Entrance"),
         "map": mid if mid in wild_by_map else None,
-        "enc": [{"m": m, "p": [[sid, l] for sid, l in enc[m].items()]} for m in order if enc.get(m)],
+        # p: [id specie, livelli, probabilità %] ordinati dalla più comune
+        "enc": [{"m": m, "p": sorted(
+            ([sid, lv(v[0], v[1]), v[2]] if v else [sid, "", None] for sid, v in enc[m].items()),
+            key=lambda x: -(x[2] or 0))} for m in order if enc.get(m)],
     })
 
 # ---------- boss e level cap ----------
@@ -285,11 +304,16 @@ CAPS = [
 ]
 caps = [{"label": l, "level": lv_, "teams": ts} for l, lv_, ts in CAPS]
 
+out_moves = {int(k): [m["name"], TYPES[m["type"]] if 0 < m["type"] < len(TYPES) else "???", m["cat"],
+                      m["power"], m["acc"], m["pp"], m["description"]] for k, m in moves.items()}
+
 data = {
     "game": "Pokémon Emerald Imperium",
     "dataVersion": "1.3.1-dex / 1.3 boss",
     "types": TYPES,
     "species": out_species,
+    # mosse: id -> [nome, tipo, categoria 0 fisica/1 speciale/2 stato, potenza, precisione, PP, descrizione]
+    "moves": out_moves,
     "areas": areas,
     "caps": caps,
 }
