@@ -1,0 +1,57 @@
+plugins {
+    id 'com.android.application'
+}
+
+android {
+    namespace 'net.ozziur.imperium'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId 'net.ozziur.imperium'
+        minSdk 29
+        targetSdk 36
+        versionCode 1
+        versionName '0.1.0'
+    }
+
+    signingConfigs {
+        app {
+            storeFile file('../keystore/imperium.jks')
+            storePassword 'imperium-nuzlocke'
+            keyAlias 'imperium'
+            keyPassword 'imperium-nuzlocke'
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.app
+        }
+        debug {
+            signingConfig signingConfigs.app
+        }
+    }
+
+    sourceSets {
+        main {
+            // L'app web vive in /web e viene impacchettata così com'è negli asset.
+            assets.srcDirs = ['../../web']
+        }
+    }
+
+    androidResources {
+        // I file .wasm e i salvataggi non vanno compressi nell'APK.
+        noCompress += ['wasm']
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.14.0'
+    implementation 'androidx.activity:activity:1.10.1'
+}

@@ -1,0 +1,14 @@
+# build
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+*.iml
+.idea/
+
+# mai ROM o salvataggi nel repository
+*.gba
+*.sav
+*.srm
+*.bps
+*.zip

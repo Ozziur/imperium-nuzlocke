@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="it">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#0f1412">
+  <title>Imperium Nuzlocke</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <!-- Configurazione al primo avvio -->
+  <section id="setup" class="screen" hidden>
+    <div class="setup-card">
+      <div class="brand"><span class="gem"></span><h1>Imperium Nuzlocke</h1></div>
+      <p class="lead">Per iniziare serve la tua copia di <b>Pokémon Emerald (USA)</b>. L'app scarica la patch ufficiale di Emerald Imperium, la applica e conserva il gioco. Lo fai una volta sola.</p>
+
+      <ol class="steps">
+        <li data-step="rom"><span class="dot"></span><div><b>ROM di Emerald</b><small id="rom-status">Non selezionata</small></div></li>
+        <li data-step="patch"><span class="dot"></span><div><b>Patch Imperium</b><small id="patch-status">In attesa</small></div></li>
+        <li data-step="apply"><span class="dot"></span><div><b>Installazione</b><small id="apply-status">In attesa</small></div></li>
+      </ol>
+
+      <div class="progress" hidden><div class="bar"></div></div>
+      <p id="setup-error" class="error" hidden></p>
+
+      <label class="btn primary block" id="pick-rom">
+        Scegli la ROM di Emerald
+        <input type="file" id="rom-input" hidden>
+      </label>
+      <details class="manual">
+        <summary>Sei offline? Usa un file della patch</summary>
+        <p>Scegli lo <code>.zip</code> ufficiale o un file <code>.bps</code> di Emerald Imperium già scaricato.</p>
+        <label class="btn block">Scegli file patch<input type="file" id="patch-input" hidden></label>
+      </details>
+      <p class="fine">La ROM non lascia mai il telefono. Fonte patch: patcher ufficiale linkato da emeraldimperium.info.</p>
+    </div>
+  </section>
+
+  <!-- Schermata di gioco -->
+  <section id="game" class="screen" hidden>
+    <header class="topbar">
+      <button class="icon" data-action="menu" aria-label="Menu"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+      <button class="chip" id="cap-chip" data-action="boss" title="Prossimo level cap">Cap —</button>
+      <div class="spacer"></div>
+      <button class="icon" data-action="speed" id="speed-btn" aria-label="Velocità"><svg viewBox="0 0 24 24"><path d="M4 6l7 6-7 6zM13 6l7 6-7 6z"/></svg><span class="badge" id="speed-badge" hidden>2×</span></button>
+      <button class="icon" data-action="states" aria-label="Salvataggi rapidi"><svg viewBox="0 0 24 24"><path d="M5 4h11l3 3v13H5z M8 4v5h7V4 M8 20v-6h8v6"/></svg></button>
+      <button class="icon accent" data-action="tracker" aria-label="Tracker Nuzlocke"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M4 12h16"/><circle cx="12" cy="12" r="2.5"/></svg></button>
+    </header>
+
+    <div class="stage">
+      <div class="screen-wrap"><canvas id="screen" width="240" height="160"></canvas></div>
+      <div id="toast" class="toast" hidden></div>
+    </div>
+
+    <div class="pad" id="pad">
+      <div class="shoulders">
+        <div class="sbtn" data-btn="L">L</div>
+        <div class="sbtn" data-btn="R">R</div>
+      </div>
+      <div class="pad-main">
+        <div class="dpad">
+          <span class="arm up" data-dir="Up"></span><span class="arm down" data-dir="Down"></span>
+          <span class="arm left" data-dir="Left"></span><span class="arm right" data-dir="Right"></span>
+          <span class="hub"></span>
+        </div>
+        <div class="face">
+          <div class="fbtn b" data-btn="B">B</div>
+          <div class="fbtn a" data-btn="A">A</div>
+        </div>
+      </div>
+      <div class="meta-btns">
+        <div class="mbtn" data-btn="Select">SELECT</div>
+        <div class="mbtn" data-btn="Start">START</div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pannelli -->
+  <div id="sheet" class="sheet" hidden>
+    <div class="sheet-panel" role="dialog" aria-modal="true">
+      <div class="sheet-head">
+        <h2 id="sheet-title"></h2>
+        <button class="icon" data-action="close" aria-label="Chiudi"><svg viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+      </div>
+      <nav class="tabs" id="sheet-tabs" hidden></nav>
+      <div class="sheet-body" id="sheet-body"></div>
+    </div>
+  </div>
+
+  <div id="boot" class="boot"><span class="gem spin"></span><p id="boot-msg">Avvio…</p></div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
