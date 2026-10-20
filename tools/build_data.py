@@ -237,6 +237,7 @@ for idx, (name, sheet_mons) in enumerate(sheet_areas):
         "id": norm(name).lower(),
         "name": name.replace("Entrace", "Entrance"),
         "map": mid if mid in wild_by_map else None,
+        "mk": mid,  # costante MAP_* della zona, usata per riconoscere dove si trova il giocatore
         # p: [id specie, livelli, probabilità %] ordinati dalla più comune
         "enc": [{"m": m, "p": sorted(
             ([sid, lv(v[0], v[1]), v[2]] if v else [sid, "", None] for sid, v in enc[m].items()),
@@ -273,7 +274,7 @@ for t in trainers.values():
 
 def team(tid, label=None):
     t = trainers[tid]
-    return {"name": label or t["name"], "double": t["double"], "mons": [
+    return {"name": label or t["name"], "id": tid, "double": t["double"], "mons": [
         {k: v for k, v in m.items() if k not in ("i", "bt") and v not in (None, [], "")} for m in t["mons"]]}
 
 

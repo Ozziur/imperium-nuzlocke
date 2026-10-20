@@ -47,9 +47,17 @@ Per provare l'interfaccia nel browser basta servire `web/` con un server statico
 
 Vedi `tools/README.md`.
 
-## Prossimi passi (Fase 2)
+## Lettura automatica (Fase 2)
 
-Lettura automatica della memoria del gioco (zona attuale, catture, esausti, livelli della squadra) per aggiornare il tracker da solo e avvisare sul level cap. Gli indirizzi di memoria per Imperium sono documentati nello script Lua del calcolatore di hzla.
+`web/js/ram.js` legge la memoria del gioco dallo stato del core una volta al secondo; `web/js/live.js` aggiorna il tracker:
+
+- zona attuale (gruppo e numero di mappa → `web/data/maps.json` → zona)
+- primo incontro selvatico di ogni zona e, nella Nuzlocke, zona persa se il Pokémon non viene catturato (solo con Poké Ball nello zaino, mai nella lotta guidata di Birch)
+- catture e regali registrati da soli, con la zona in cui avvengono; lo starter va a Littleroot Town
+- evoluzioni, cadute (PS a zero) e avviso quando la squadra supera il level cap
+- boss superati: se l'allenatore battuto è quello del level cap attuale, si passa al successivo
+
+Gli indirizzi vengono dallo script Lua del calcolatore di hzla e sono verificati sul gioco 1.3.1.
 
 ## Licenze di terze parti
 

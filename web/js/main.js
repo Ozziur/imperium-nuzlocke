@@ -3,6 +3,7 @@ import { setupControls } from './controls.js';
 import { kv, requestPersistence } from './storage.js';
 import * as P from './patcher.js';
 import * as N from './nuzlocke.js';
+import { Live } from './live.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -22,6 +23,7 @@ async function boot() {
   try {
     setBoot('Carico i dati di Imperium…');
     app.data = await N.loadData();
+    app.maps = (await (await fetch('data/maps.json')).json()).groups;
     app.settings = { ...app.settings, ...((await kv.get('settings')) || {}) };
     requestPersistence();
 
@@ -145,6 +147,16 @@ async function startRun(run) {
   await kv.set('active-run', run.id);
   await app.emu.start(run.id, { rewind: run.rules.nuzlocke ? run.rules.rewind !== 'block' : true, volume: app.settings.volume });
   app.emu.setSpeed(1);
+  app.live = new Live({
+    emu: app.emu,
+    data: app.data,
+    maps: app.maps,
+    getRun: () => app.run,
+    persist: () => persistRun(),
+    toast,
+    onUpdate: onLiveUpdate,
+  });
+  app.live.start();
   updateSpeedBadge();
   updateCapChip();
   updateInfo();
@@ -174,7 +186,9 @@ function updateCapChip() {
   }
   chip.hidden = false;
   const cap = N.currentCap(run);
-  chip.textContent = run.capIndex >= app.data.caps.length ? 'Lega superata' : `Cap ${cap.level}`;
+  const cs = app.live?.capStatus(run);
+  chip.classList.toggle('warn', !!cs?.over.length);
+  chip.textContent = run.capIndex >= app.data.caps.length ? 'Lega superata' : cs?.over.length ? `Cap ${cap.level} superato` : `Cap ${cap.level}`;
 }
 
 function updateSpeedBadge() {
@@ -183,13 +197,26 @@ function updateSpeedBadge() {
   $('#speed-badge').textContent = `${s}×`;
 }
 
-let toastTimer;
+// Messaggi brevi sopra lo schermo, mostrati uno dopo l'altro.
+const toastQueue = [];
+let toastBusy = false;
 function toast(msg, ms = 2200) {
+  toastQueue.push([msg, ms]);
+  if (toastQueue.length > 4) toastQueue.splice(0, toastQueue.length - 4);
+  if (!toastBusy) nextToast();
+}
+function nextToast() {
   const t = $('#toast');
-  t.textContent = msg;
+  const item = toastQueue.shift();
+  if (!item) {
+    toastBusy = false;
+    t.hidden = true;
+    return;
+  }
+  toastBusy = true;
+  t.textContent = item[0];
   t.hidden = false;
-  clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (t.hidden = true), ms);
+  setTimeout(nextToast, item[1]);
 }
 
 function bindTopbar() {
@@ -344,10 +371,25 @@ function updateInfo() {
     `<div class="ir" data-go="boss"><span class="lbl">Boss</span><span class="val">${done ? 'Lega superata' : `${esc(cap.label)} <small>· cap ${cap.level}</small>`}</span></div>`,
   ];
   if (types.length) rows.push(`<div class="ir" data-go="boss"><span class="lbl">Tipi</span><span class="types">${types.map((t) => `<span class="type t-${t}">${t}</span>`).join('')}</span></div>`);
+  const area = app.live?.area;
+  const cs = app.live?.capStatus(run);
+  if (cs?.over.length) rows.push(`<div class="ir" data-go="team"><span class="lbl">Level cap</span><span class="val" style="color:var(--warn)">${cs.over.map((m) => `${esc(N.spName(m.species))} Lv. ${m.level}`).join(', ')} oltre il ${cs.cap}</span></div>`);
+  if (area) {
+    const rec = run.areas[area.id];
+    let status = '';
+    if (run.rules.nuzlocke) {
+      const m = rec?.mon && run.mons.find((x) => x.uid === rec.mon);
+      status = !rec ? (N.areaHasFreshEncounter(run, area) ? 'incontro disponibile' : 'solo duplicati') : rec.status === 'caught' ? `preso: ${esc(m ? m.nick || N.spName(m.sid) : N.spName(rec.sid))}` : rec.status === 'failed' ? 'incontro perso' : 'saltata';
+    } else {
+      const n = run.mons.filter((m) => m.area === area.id).length;
+      status = `${area.enc.reduce((k, g) => k + g.p.length, 0)} specie${n ? ` · ${n} presi` : ''}`;
+    }
+    rows.push(`<div class="ir" data-go="here"><span class="lbl">Sei a</span><span class="val">${esc(area.name)} <small>· ${status}</small></span></div>`);
+  }
   if (run.rules.nuzlocke) {
     const st = N.stats(run);
     const next = N.nextOpenArea(run);
-    rows.push(`<div class="ir" data-go="zone"><span class="lbl">Zona</span><span class="val">${next ? esc(next.name) : 'Tutte registrate'} <small>· ${st.alive} vivi, ${st.dead} caduti</small></span></div>`);
+    if (!area || next !== area) rows.push(`<div class="ir" data-go="zone"><span class="lbl">Prossima</span><span class="val">${next ? esc(next.name) : 'Tutte registrate'} <small>· ${st.alive} vivi, ${st.dead} caduti</small></span></div>`);
   } else {
     const last = run.mons[run.mons.length - 1];
     rows.push(`<div class="ir" data-go="team"><span class="lbl">Catturati</span><span class="val">${run.mons.length}${last ? ` <small>· ultimo: ${esc(last.nick || N.spName(last.sid))}</small>` : ''}</span></div>`);
@@ -357,8 +399,25 @@ function updateInfo() {
 
 $('#info').addEventListener('click', (e) => {
   app.emu.resumeAudio();
-  openTracker(e.target.closest('[data-go]')?.dataset.go || 'boss');
+  const go = e.target.closest('[data-go]')?.dataset.go || 'boss';
+  if (go === 'here' && app.live?.area) {
+    openTracker('zone');
+    const id = app.live.area.id;
+    pushView(app.live.area.name, (b) => areaView(b, id));
+  } else openTracker(go);
 });
+
+// Aggiorna pannello e chip solo quando cambia qualcosa di visibile.
+let liveSig = '';
+function onLiveUpdate(live) {
+  const g = live.game;
+  const cs = live.capStatus(app.run);
+  const sig = [live.area?.id, g?.inBattle, cs?.over.length, app.run?.updated].join('|');
+  if (sig === liveSig) return;
+  liveSig = sig;
+  updateCapChip();
+  updateInfo();
+}
 
 // ---------------------------------------------------------------- tracker
 
@@ -388,6 +447,7 @@ function zonesView(body) {
   const nz = run.rules.nuzlocke;
   const st = N.stats(run);
   const next = N.nextOpenArea(run);
+  const here = app.live?.area?.id;
   const byArea = {};
   for (const m of run.mons) byArea[m.area] = (byArea[m.area] || 0) + 1;
   body.innerHTML = `
@@ -420,6 +480,7 @@ function zonesView(body) {
         if (!nz) {
           const n = byArea[a.id];
           if (n) status = `<span class="status caught">${n} ${n === 1 ? 'catturato' : 'catturati'}</span>`;
+          if (a.id === here) status = '<span class="status here">Sei qui</span>' + status;
           return `<div class="item" data-area="${a.id}"><div class="main"><b>${esc(a.name)}</b><small>${sub}</small></div>${status}</div>`;
         }
         if (rec?.status === 'caught') {
@@ -436,6 +497,7 @@ function zonesView(body) {
           sub = 'Solo duplicati';
         }
         const dim = (rec && rec.status !== 'caught') || (!rec && !fresh);
+        if (a.id === here) status = '<span class="status here">Sei qui</span>' + status;
         return `<div class="item ${dim ? 'dim' : ''}" data-area="${a.id}"><div class="main"><b>${esc(a.name)}</b><small>${sub}</small></div>${status}</div>`;
       })
       .join('') || '<p class="empty">Nessuna zona trovata.</p>';
@@ -446,9 +508,10 @@ function zonesView(body) {
     const id = e.target.closest('[data-area]')?.dataset.area;
     if (id) pushView(app.data.areaById[id].name, (b) => areaView(b, id));
   });
-  if (next && !sheet.scrolledToNext) {
+  const focus = here || next?.id;
+  if (focus && !sheet.scrolledToNext) {
     sheet.scrolledToNext = true;
-    requestAnimationFrame(() => list.querySelector(`[data-area="${next.id}"]`)?.scrollIntoView({ block: 'center' }));
+    requestAnimationFrame(() => list.querySelector(`[data-area="${focus}"]`)?.scrollIntoView({ block: 'center' }));
   }
 }
 
@@ -543,9 +606,28 @@ function monRow(m) {
 function teamView(body) {
   const nz = app.run.rules.nuzlocke;
   const alive = app.run.mons.filter((m) => m.alive);
-  body.innerHTML = alive.length
-    ? `<p class="hint">${nz ? "Tutti i Pokémon vivi della run. Tocca per segnare una caduta o un'evoluzione." : "I Pokémon che hai segnato. Tocca per vedere statistiche ed evoluzioni."}</p><div class="list">${alive.map(monRow).join('')}</div>`
-    : '<p class="empty">Nessun Pokémon segnato. Aggiungili dalla scheda Zone.</p>';
+  const party = app.live?.game?.party || [];
+  const inParty = new Set(party.map((p) => p.pid));
+  const partyRows = party
+    .map((p) => {
+      const m = app.run.mons.find((x) => x.pid === p.pid);
+      const pct = p.maxHp ? Math.round((p.hp / p.maxHp) * 100) : 0;
+      const cap = N.currentCap(app.run)?.level;
+      const base = N.spName(p.species).split(' (')[0].toLowerCase();
+      const nick = m?.nick || (p.nick && p.nick.toLowerCase() !== base ? p.nick : '');
+      const title = nick ? `${esc(nick)} <small>(${esc(N.spName(p.species))})</small>` : esc(N.spName(p.species));
+      return `<div class="item" ${m ? `data-uid="${m.uid}"` : ''}><div class="main"><b>${title}${p.shiny ? ' ✦' : ''}</b>
+        <small><span style="color:${p.level > cap ? 'var(--warn)' : 'inherit'}">Lv. ${p.level}</span> · PS ${p.hp}/${p.maxHp}</small>
+        <div class="hp"><span style="width:${pct}%;background:${pct > 50 ? 'var(--accent)' : pct > 20 ? 'var(--warn)' : 'var(--danger)'}"></span></div></div>${typesHtml(p.species)}</div>`;
+    })
+    .join('');
+  const rest = alive.filter((m) => !inParty.has(m.pid));
+  body.innerHTML =
+    (party.length ? `<div class="section-title">In squadra ora</div><div class="list">${partyRows}</div>` : '') +
+    (rest.length || !party.length
+      ? `<div class="section-title">${party.length ? 'Nei box' : nz ? 'Pokémon vivi' : 'Catturati'}</div>` +
+        (rest.length ? `<div class="list">${rest.map(monRow).join('')}</div>` : '<p class="empty">Nessun Pokémon registrato. Le catture vengono segnate da sole mentre giochi, oppure a mano dalla scheda Zone.</p>')
+      : '');
   on(body, '[data-uid]', 'click', (e, el) => {
     const m = app.run.mons.find((x) => x.uid === el.dataset.uid);
     pushView(m.nick || N.spName(m.sid), (b) => monView(b, m.uid));
@@ -559,10 +641,17 @@ function monView(body, uid) {
   const evos = (s?.e || []).filter(([id]) => N.sp(id));
   const cap = N.currentCap(run);
   const stats = s ? ['PS', 'Att', 'Dif', 'AttSp', 'DifSp', 'Vel'].map((l, i) => `<span>${l} <b>${s.s[i]}</b></span>`).join(' · ') : '';
+  const g = app.live?.game;
+  const real = m.pid && g ? [...(g.party || []), ...(g.boxes || [])].find((x) => x.pid === m.pid) : null;
+  const liveHtml = real
+    ? `<div class="section-title">Ora nel gioco</div><div class="card"><small>Lv. ${real.level ?? '—'}${real.maxHp ? ` · PS ${real.hp}/${real.maxHp}` : ''}${real.box != null ? ` · box ${real.box + 1}` : ' · in squadra'}</small></div>
+       ${real.moves.length ? `<div class="moves">${real.moves.map((id) => moveHtml(id)).join('')}</div>` : ''}`
+    : '';
   body.innerHTML = `
     <div class="card"><div class="row"><b class="grow">${esc(N.spName(m.sid))}</b>${typesHtml(m.sid)}</div>
       <small>${stats}</small><br><small>Abilità: ${esc((s?.a || []).filter(Boolean).join(', '))}</small><br>
       <small>Catturato a ${esc(app.data.areaById[m.area]?.name || '?')}</small></div>
+    ${liveHtml}
     <div class="field"><label>Soprannome</label><input type="text" id="nick" maxlength="12" value="${esc(m.nick)}"></div>
     ${evos.length ? `<div class="section-title">Evoluzione</div><div class="row wrap">${evos.map(([id]) => `<button class="btn small" data-evo="${id}">→ ${esc(N.spName(id))}</button>`).join('')}</div>` : ''}
     ${!run.rules.nuzlocke ? '<button class="btn block danger" id="btn-remove">Rimuovi dalla lista</button>' : m.alive ? `
