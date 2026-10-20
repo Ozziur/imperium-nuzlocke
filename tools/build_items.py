@@ -4,7 +4,7 @@ in cui diventano disponibili.
 
 Fonte: foglio "Item (TMs, Mega Stones, etc) and Useful NPC Locations" della documentazione di Imperium
 (esportato come xlsx). Le descrizioni vengono ridotte a luogo + condizione in italiano.
-Uso: python3 tools/build_items.py items.xlsx web/data/imperium.json web/data/walkthrough.json web/data/items.json
+Uso: python3 tools/build_items.py items.xlsx web/data/imperium.json web/data/walkthrough.json web/data/items.json [item_names.json]
 """
 import json
 import re
@@ -196,7 +196,21 @@ for kind, name, desc in raw:
         s = len(splits)
     items.append({"k": kind, "n": name, "p": shown or "", "c": condition(desc), "s": s})
 
-json.dump({"source": "Item (TMs, Mega Stones, etc) and Useful NPC Locations", "items": items},
+# id degli oggetti nel gioco (lista del lettore di salvataggi del calcolatore), per spuntarli quando li possiedi
+names = json.load(open(sys.argv[5], encoding="utf8")) if len(sys.argv) > 5 else []
+by_norm = {re.sub(r"[^A-Z0-9]", "", n.upper()): i for i, n in enumerate(names)}
+for it in items:
+    if it["k"] == "tm":
+        m = re.match(r"MT0*(\d+)", it["n"])
+        key = "TM" + (m.group(1).zfill(2) if m else "")
+    else:
+        key = re.sub(r"[^A-Z0-9]", "", it["n"].upper())
+        key = {"LUXITE": "LUXRITE", "BEEDRILITE": "BEEDRILLITE", "LEAFSTONES": "LEAFSTONE"}.get(key, key)
+    if key in by_norm:
+        it["id"] = by_norm[key]
+pretty = [n.replace("_", " ").title().replace("Tm", "MT").replace("Hm", "MN") for n in names]
+
+json.dump({"source": "Item (TMs, Mega Stones, etc) and Useful NPC Locations", "items": items, "names": pretty},
           open(OUT, "w", encoding="utf8"), ensure_ascii=False, separators=(",", ":"))
 from collections import Counter
 print(len(items), "voci;", Counter(i["k"] for i in items), "per parte:", sorted(Counter(i["s"] for i in items).items()))

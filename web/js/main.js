@@ -422,7 +422,7 @@ const typeIdx = (name) => app.data.types.indexOf(name);
 function battlePanel(g) {
   const foes = g.battlers.filter((b) => b.side === 1);
   const mine = g.battlers.filter((b) => b.side === 0);
-  return trainerRow(g, foes) + foes.map((b) => battlerCard(b, mine, true)).join('') + mine.map((b) => battlerCard(b, foes, false)).join('');
+  return trainerRow(g, foes) + foes.map((b) => battlerCard(b, mine, true, g)).join('') + mine.map((b) => battlerCard(b, foes, false, g)).join('');
 }
 
 /** Squadra completa dell'allenatore avversario, letta dal gioco: chi è in campo, chi è esausto. */
@@ -440,10 +440,33 @@ function trainerRow(g, foes) {
   return `<div class="trow"><div class="tname">${esc(t ? t.n.replace(/\d+$/, '') : 'Allenatore')} <small>${g.enemy.filter((m) => m.hp > 0).length}/${g.enemy.length}</small></div><div class="tchips">${chips}</div></div>`;
 }
 
-function battlerCard(b, targets, foe) {
+// Nature nell'ordine del gioco: +stat = floor(n/5), −stat = n%5 su [Att, Dif, Vel, AttSp, DifSp]
+const NATURES = ['Hardy', 'Lonely', 'Brave', 'Adamant', 'Naughty', 'Bold', 'Docile', 'Relaxed', 'Impish', 'Lax', 'Timid', 'Hasty', 'Serious', 'Jolly', 'Naive', 'Modest', 'Mild', 'Quiet', 'Bashful', 'Rash', 'Calm', 'Gentle', 'Sassy', 'Careful', 'Quirky'];
+const STAT_SHORT = ['Att', 'Dif', 'Vel', 'AtS', 'DfS'];
+const STAGE_INDEX = [1, 2, 3, 4, 5]; // posizione degli stadi per Att, Dif, Vel, AttSp, DifSp
+
+function statsLine(b, mon) {
+  const nat = mon ? mon.nature : null;
+  const plus = nat != null && Math.floor(nat / 5) !== nat % 5 ? Math.floor(nat / 5) : -1;
+  const minus = nat != null && Math.floor(nat / 5) !== nat % 5 ? nat % 5 : -1;
+  // b.stats: [Att, Dif, Vel, AttSp, DifSp]
+  const cells = b.stats.map((v, i) => {
+    const st = b.stages[STAGE_INDEX[i]];
+    const eff = Math.floor(v * T.stageMult(st));
+    const cls = i === plus ? 'np' : i === minus ? 'nm' : '';
+    return `<span class="sc ${cls}"><i>${STAT_SHORT[i]}</i>${st ? `<b class="${st > 0 ? 'up' : 'down'}">${eff}</b>` : eff}</span>`;
+  });
+  return `<div class="stats-line">${cells.join('')}</div>`;
+}
+
+function battlerCard(b, targets, foe, g) {
   const sp = N.sp(b.species);
   const types = [...new Set(b.types)].filter((t) => t && t !== 10);
   const ab = app.data.abilities[b.ability] || ['', ''];
+  const mon = (foe ? g?.enemy : g?.party)?.[b.partyIndex];
+  const item = mon?.item ? app.data.itemNames[mon.item] : '';
+  const bst = sp ? sp.s.reduce((a, x) => a + x, 0) : 0;
+  const nat = mon && mon.nature != null ? NATURES[mon.nature] : '';
   const pct = b.maxHp ? Math.round((b.hp / b.maxHp) * 100) : 0;
   const spe = b.stats[2] * T.stageMult(b.stages[3]);
   const faster = targets.length ? targets.every((t) => spe > t.stats[2] * T.stageMult(t.stages[3])) : null;
@@ -467,7 +490,9 @@ function battlerCard(b, targets, foe) {
     <div class="bh"><b>${esc(sp ? sp.n : '#' + b.species)}</b><small>Lv. ${b.level}</small>${types.map((t) => `<span class="type t-${app.data.types[t]}">${app.data.types[t]}</span>`).join('')}
       <span class="grow"></span><span class="spd ${faster ? 'fast' : slower ? 'slow' : ''}" title="Velocità">${faster ? '▲' : slower ? '▼' : '='} ${Math.round(spe)}</span></div>
     <div class="hp"><span style="width:${pct}%;background:${pct > 50 ? 'var(--accent)' : pct > 20 ? 'var(--warn)' : 'var(--danger)'}"></span></div>
-    <div class="bsub"><span title="${esc(ab[1])}">${esc(ab[0])}</span> · ${foe ? `${pct}%` : `${b.hp}/${b.maxHp}`}${stages ? ` · ${stages}` : ''}</div>
+    <div class="bsub"><span title="${esc(ab[1])}">${esc(ab[0])}</span>${item ? ` · @ ${esc(item)}` : ''} · ${foe ? `${pct}%` : `${b.hp}/${b.maxHp}`}${stages ? ` · ${stages}` : ''}</div>
+    ${statsLine(b, mon)}
+    <div class="bsub small">${nat ? `${esc(nat)} · ` : ''}BST ${bst}${sp ? ` · base ${sp.s.join('/')}` : ''}</div>
     <div class="bmoves">${moves}</div></div>`;
 }
 

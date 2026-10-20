@@ -81,6 +81,7 @@ export class Live {
     if (g.boxes) changed = this._owned(run, g) || changed;
     changed = this._party(run, g) || changed;
     changed = this._beaten(run, g) || changed;
+    changed = this._items(run, g) || changed;
     const cs = this.capStatus(run);
     if (cs?.over.length && this._capWarned !== run.capIndex) {
       this._capWarned = run.capIndex;
@@ -238,6 +239,36 @@ export class Live {
     return changed;
   }
 
+  // ---------- oggetti posseduti (zaino + strumenti tenuti) ----------
+
+  _items(run, g) {
+    if (!g.bag || !g.boxes) return false;
+    const ids = new Set(g.bag);
+    for (const m of [...g.party, ...g.boxes]) if (m.item) ids.add(m.item);
+    const list = [...ids].sort((a, b) => a - b);
+    const key = list.join(',');
+    if (key === (run.ownedItems || []).join(',')) return false;
+    run.ownedItems = list;
+    return true;
+  }
+
+  /** La nuova specie è un'evoluzione (diretta o successiva) della vecchia? */
+  _evolvesTo(from, to) {
+    const seen = new Set();
+    const stack = [from];
+    while (stack.length) {
+      const s = stack.pop();
+      for (const [next] of this.data.species[s]?.e || []) {
+        if (next === to) return true;
+        if (!seen.has(next)) {
+          seen.add(next);
+          stack.push(next);
+        }
+      }
+    }
+    return false;
+  }
+
   // ---------- squadra: evoluzioni, cadute, level cap ----------
 
   _party(run, g) {
@@ -245,10 +276,18 @@ export class Live {
     for (const real of g.party) {
       const m = run.mons.find((x) => x.pid === real.pid);
       if (!m) continue;
-      if (m.sid !== real.species && !real.isEgg) {
-        this.toast(`${m.nick || N.spName(m.sid)} si è evoluto in ${N.spName(real.species)}`);
-        m.sid = real.species;
-        changed = true;
+      // Evoluzione: solo fuori dalla lotta (le megaevoluzioni e i cambi di forma sono temporanei),
+      // solo verso un'evoluzione vera della specie e solo se il valore resta uguale per 2 letture.
+      if (m.sid !== real.species && !real.isEgg && !g.inBattle && this._evolvesTo(m.sid, real.species)) {
+        const k = `${real.pid}:${real.species}`;
+        this._evoSeen ??= {};
+        this._evoSeen[k] = (this._evoSeen[k] || 0) + 1;
+        if (this._evoSeen[k] >= 2) {
+          this.toast(`${m.nick || N.spName(m.sid)} si è evoluto in ${N.spName(real.species)}`);
+          m.sid = real.species;
+          delete this._evoSeen[k];
+          changed = true;
+        }
       }
       if (run.rules.nuzlocke && m.alive && real.maxHp > 0 && real.hp === 0) {
         const cause = this.battle?.trainer ? 'lotta contro allenatore' : this.battle?.enemy ? `${N.spName(this.battle.enemy.sid)} selvatico` : '';

@@ -4,141 +4,641 @@
   "splits": [
     {
       "title": "Verso Roxanne",
-      "caps": [0],
+      "caps": [
+        0
+      ],
       "steps": [
-        { "p": "Littleroot Town", "t": "Sali al piano di sopra di casa tua e regola l'orologio" },
-        { "p": "Littleroot Town", "t": "Nella casa accanto, sali e parla con il rivale" },
-        { "p": "Littleroot Town", "t": "Vai a sud al laboratorio di Birch e scegli lo starter" },
-        { "p": "Route 103", "t": "Batti il rivale nella parte nord del percorso" },
-        { "p": "Oldale Town", "t": "Ritira l'Uovo di inizio gioco al Centro Pokémon e fallo schiudere" },
-        { "p": "Littleroot Town", "t": "Torna da Birch per il Pokédex" },
-        { "p": "Petalburg City", "t": "Parla con il pescatore al laghetto a nord: Amo Vecchio" },
-        { "p": "Petalburg City", "t": "In palestra, accompagna Wally nel tutorial di cattura" },
-        { "p": "Petalburg Woods", "t": "A metà bosco, batti la recluta del Team Aqua" },
-        { "p": "Route 104", "t": "Batti Dawn alla fine del ponte a nord" },
-        { "p": "Route 116", "t": "In fondo al percorso, a est: Roark", "o": true, "x": "Capopalestra di Sinnoh" },
-        { "p": "Route 116", "t": "In fondo al percorso, a est: Candice", "o": true, "x": "Capopalestra di Sinnoh" },
-        { "p": "Rustboro City", "t": "Supera la palestra e batti Roxanne" },
-        { "p": "Rustboro City", "t": "Nella casa a sud-ovest ricevi la MN Taglio" }
+        {
+          "p": "Littleroot Town",
+          "t": "Sali al piano di sopra di casa tua e regola l'orologio"
+        },
+        {
+          "p": "Littleroot Town",
+          "t": "Nella casa accanto, sali e parla con il rivale"
+        },
+        {
+          "p": "Littleroot Town",
+          "t": "Vai a sud al laboratorio di Birch e scegli lo starter",
+          "party": 1
+        },
+        {
+          "p": "Route 103",
+          "t": "Batti il rivale nella parte nord del percorso",
+          "tr": [
+            520,
+            523,
+            526,
+            529,
+            532,
+            535
+          ]
+        },
+        {
+          "p": "Oldale Town",
+          "t": "Ritira l'Uovo di inizio gioco al Centro Pokémon e fallo schiudere"
+        },
+        {
+          "p": "Littleroot Town",
+          "t": "Torna da Birch per il Pokédex"
+        },
+        {
+          "p": "Petalburg City",
+          "t": "Parla con il pescatore al laghetto a nord: Amo Vecchio",
+          "it": [
+            851
+          ]
+        },
+        {
+          "p": "Petalburg City",
+          "t": "In palestra, accompagna Wally nel tutorial di cattura"
+        },
+        {
+          "p": "Petalburg Woods",
+          "t": "A metà bosco, batti la recluta del Team Aqua",
+          "tr": [
+            10
+          ]
+        },
+        {
+          "p": "Route 104",
+          "t": "Batti Dawn alla fine del ponte a nord",
+          "tr": [
+            855
+          ]
+        },
+        {
+          "p": "Route 116",
+          "t": "In fondo al percorso, a est: Roark",
+          "o": true,
+          "x": "Capopalestra di Sinnoh",
+          "tr": [
+            710
+          ]
+        },
+        {
+          "p": "Route 116",
+          "t": "In fondo al percorso, a est: Candice",
+          "o": true,
+          "x": "Capopalestra di Sinnoh",
+          "tr": [
+            851
+          ]
+        },
+        {
+          "p": "Rustboro City",
+          "t": "Supera la palestra e batti Roxanne",
+          "tr": [
+            265
+          ]
+        },
+        {
+          "p": "Rustboro City",
+          "t": "Nella casa a sud-ovest ricevi la MN Taglio",
+          "it": [
+            824
+          ]
+        }
       ]
     },
     {
       "title": "Verso Brawly",
-      "caps": [1, 2],
+      "caps": [
+        1,
+        2
+      ],
       "steps": [
-        { "p": "Rusturf Tunnel", "t": "Batti la recluta del Team Aqua" },
-        { "p": "Rustboro City", "t": "Uscendo a sud, batti il rivale. Si sblocca il volo rapido col PokéNav" },
-        { "p": "Petalburg Woods", "t": "Gardenia, quando vuoi (più forte se aspetti dopo Wattson)", "o": true, "x": "Capopalestra di Sinnoh" },
-        { "p": "Route 104", "t": "Fatti portare da Mr. Briney a Dewford Town" },
-        { "p": "Granite Cave", "t": "Dal primo Montanaro ricevi la MN Flash" },
-        { "p": "Granite Cave", "t": "Sali in cima e consegna la lettera a Steven" },
-        { "p": "Rustboro City", "t": "Pietre evolutive dal presidente della Devon", "o": true },
-        { "p": "Dewford Town", "t": "Supera la palestra e batti Brawly" },
-        { "p": "Dewford Town", "t": "Con Mr. Briney salpa per Slateport City" }
+        {
+          "p": "Rusturf Tunnel",
+          "t": "Batti la recluta del Team Aqua",
+          "tr": [
+            16
+          ]
+        },
+        {
+          "p": "Rustboro City",
+          "t": "Uscendo a sud, batti il rivale. Si sblocca il volo rapido col PokéNav",
+          "tr": [
+            592,
+            593,
+            599,
+            600,
+            768,
+            769
+          ]
+        },
+        {
+          "p": "Petalburg Woods",
+          "t": "Gardenia, quando vuoi (più forte se aspetti dopo Wattson)",
+          "o": true,
+          "x": "Capopalestra di Sinnoh",
+          "tr": [
+            23,
+            852
+          ]
+        },
+        {
+          "p": "Route 104",
+          "t": "Fatti portare da Mr. Briney a Dewford Town"
+        },
+        {
+          "p": "Granite Cave",
+          "t": "Dal primo Montanaro ricevi la MN Flash",
+          "it": [
+            828
+          ]
+        },
+        {
+          "p": "Granite Cave",
+          "t": "Sali in cima e consegna la lettera a Steven"
+        },
+        {
+          "p": "Rustboro City",
+          "t": "Pietre evolutive dal presidente della Devon",
+          "o": true
+        },
+        {
+          "p": "Dewford Town",
+          "t": "Supera la palestra e batti Brawly",
+          "tr": [
+            266
+          ]
+        },
+        {
+          "p": "Dewford Town",
+          "t": "Con Mr. Briney salpa per Slateport City"
+        }
       ]
     },
     {
       "title": "Verso Wattson",
-      "caps": [3, 4, 5],
+      "caps": [
+        3,
+        4,
+        5
+      ],
       "steps": [
-        { "p": "Route 109", "t": "Hot House: sfida gli allenatori per un Pokémon regalo (scelta in base alle medaglie)", "o": true },
-        { "p": "Slateport City", "t": "Nell'edificio a sud del museo parla con Dock" },
-        { "p": "Slateport City", "t": "Al museo prendi Flip Turn dalla recluta e parla con il Capitano Stern" },
-        { "p": "Slateport City", "t": "Amo Buono a sud della città, lato ovest della Trick House" },
-        { "p": "Route 110", "t": "Allenatori obbligatori e il rivale" },
-        { "p": "Mauville City", "t": "MN Spaccaroccia ed Editor di statistiche (stessa casa)" },
-        { "p": "Mauville City", "t": "Bicicletta dal negozio di bici" },
-        { "p": "Mauville City", "t": "Pikachu in regalo al Centro Pokémon" },
-        { "p": "Route 117", "t": "Fantina, dopo alcuni mini-boss", "o": true, "x": "Capopalestra di Sinnoh" },
-        { "p": "Mauville City", "t": "Batti Wally davanti alla palestra" },
-        { "p": "Mauville City", "t": "Batti Wattson" },
-        { "p": "Mauville City", "t": "Strumenti al Casinò", "o": true }
+        {
+          "p": "Route 109",
+          "t": "Hot House: sfida gli allenatori per un Pokémon regalo (scelta in base alle medaglie)",
+          "o": true
+        },
+        {
+          "p": "Slateport City",
+          "t": "Nell'edificio a sud del museo parla con Dock"
+        },
+        {
+          "p": "Slateport City",
+          "t": "Al museo prendi Flip Turn dalla recluta e parla con il Capitano Stern",
+          "it": [
+            584
+          ]
+        },
+        {
+          "p": "Slateport City",
+          "t": "Amo Buono a sud della città, lato ovest della Trick House",
+          "it": [
+            852
+          ]
+        },
+        {
+          "p": "Route 110",
+          "t": "Allenatori obbligatori e il rivale",
+          "tr": [
+            521,
+            524,
+            527,
+            530,
+            533,
+            536
+          ]
+        },
+        {
+          "p": "Mauville City",
+          "t": "MN Spaccaroccia ed Editor di statistiche (stessa casa)",
+          "it": [
+            829
+          ]
+        },
+        {
+          "p": "Mauville City",
+          "t": "Bicicletta dal negozio di bici",
+          "it": [
+            849,
+            850
+          ]
+        },
+        {
+          "p": "Mauville City",
+          "t": "Pikachu in regalo al Centro Pokémon"
+        },
+        {
+          "p": "Route 117",
+          "t": "Fantina, dopo alcuni mini-boss",
+          "o": true,
+          "x": "Capopalestra di Sinnoh",
+          "tr": [
+            336
+          ]
+        },
+        {
+          "p": "Mauville City",
+          "t": "Batti Wally davanti alla palestra",
+          "tr": [
+            656
+          ]
+        },
+        {
+          "p": "Mauville City",
+          "t": "Batti Wattson",
+          "tr": [
+            267
+          ]
+        },
+        {
+          "p": "Mauville City",
+          "t": "Strumenti al Casinò",
+          "o": true
+        }
       ]
     },
     {
       "title": "Verso Flannery",
-      "caps": [6, 7],
+      "caps": [
+        6,
+        7
+      ],
       "steps": [
-        { "p": "Rusturf Tunnel", "t": "Da Verdanturf, rompi le rocce con Spaccaroccia: MN Forza" },
-        { "p": "Verdanturf Town", "t": "Strumenti evolutivi al negozio", "o": true },
-        { "p": "Route 111", "t": "A nord di Mauville batti Dawn" },
-        { "p": "Route 112", "t": "Supera Route 111 e 112 fino al Montanaro Trent" },
-        { "p": "Route 113", "t": "Attraversa Fiery Path e batti i mini-boss per arrivare a Fallarbor" },
-        { "p": "Fallarbor Town", "t": "Uova degli starter disponibili", "o": true },
-        { "p": "Route 114", "t": "Capopalestra di Sinnoh vicino al ponte di neve", "o": true, "x": "Capopalestra di Sinnoh" },
-        { "p": "Meteor Falls", "t": "Scena con il Team Magma" },
-        { "p": "Route 111", "t": "Dal sentiero nord, a est, prendi la funivia per Mt. Chimney" },
-        { "p": "Mt. Chimney", "t": "Tre boss: doppia del Team Magma, Tabitha e Maxie" },
-        { "p": "Mt. Chimney", "t": "Prendi il Meteorite e scendi a sud verso Lavaridge" },
-        { "p": "Lavaridge Town", "t": "Tanti TM dal venditore fuori dal market", "o": true },
-        { "p": "Lavaridge Town", "t": "Uovo di metà gioco nella casa a ovest del Centro Pokémon" },
-        { "p": "Jagged Pass", "t": "Maylene, a nord-est della città", "o": true, "x": "Capopalestra di Sinnoh" },
-        { "p": "Lavaridge Town", "t": "Batti Flannery e ricevi il Megacerchio" }
+        {
+          "p": "Rusturf Tunnel",
+          "t": "Da Verdanturf, rompi le rocce con Spaccaroccia: MN Forza",
+          "it": [
+            827
+          ]
+        },
+        {
+          "p": "Verdanturf Town",
+          "t": "Strumenti evolutivi al negozio",
+          "o": true
+        },
+        {
+          "p": "Route 111",
+          "t": "A nord di Mauville batti Dawn",
+          "tr": [
+            744
+          ]
+        },
+        {
+          "p": "Route 112",
+          "t": "Supera Route 111 e 112 fino al Montanaro Trent",
+          "tr": [
+            627
+          ]
+        },
+        {
+          "p": "Route 113",
+          "t": "Attraversa Fiery Path e batti i mini-boss per arrivare a Fallarbor"
+        },
+        {
+          "p": "Fallarbor Town",
+          "t": "Uova degli starter disponibili",
+          "o": true
+        },
+        {
+          "p": "Route 114",
+          "t": "Capopalestra di Sinnoh vicino al ponte di neve",
+          "o": true,
+          "x": "Capopalestra di Sinnoh"
+        },
+        {
+          "p": "Meteor Falls",
+          "t": "Scena con il Team Magma"
+        },
+        {
+          "p": "Route 111",
+          "t": "Dal sentiero nord, a est, prendi la funivia per Mt. Chimney"
+        },
+        {
+          "p": "Mt. Chimney",
+          "t": "Tre boss: doppia del Team Magma, Tabitha e Maxie",
+          "tr": [
+            602
+          ]
+        },
+        {
+          "p": "Mt. Chimney",
+          "t": "Prendi il Meteorite e scendi a sud verso Lavaridge",
+          "it": [
+            885
+          ]
+        },
+        {
+          "p": "Lavaridge Town",
+          "t": "Tanti TM dal venditore fuori dal market",
+          "o": true
+        },
+        {
+          "p": "Lavaridge Town",
+          "t": "Uovo di metà gioco nella casa a ovest del Centro Pokémon"
+        },
+        {
+          "p": "Jagged Pass",
+          "t": "Maylene, a nord-est della città",
+          "o": true,
+          "x": "Capopalestra di Sinnoh",
+          "tr": [
+            566
+          ]
+        },
+        {
+          "p": "Lavaridge Town",
+          "t": "Batti Flannery e ricevi il Megacerchio",
+          "tr": [
+            268
+          ]
+        }
       ]
     },
     {
       "title": "Verso Norman",
-      "caps": [8, 9],
+      "caps": [
+        8,
+        9
+      ],
       "steps": [
-        { "p": "Route 111", "t": "Deserto: mini-boss nella sabbia e MN Surf (prima o dopo Norman)", "o": true },
-        { "p": "Route 110", "t": "Batti Wally davanti alla Trick House" },
-        { "p": "Route 110", "t": "Supera i 3 piani della Trick House" },
-        { "p": "Petalburg City", "t": "Supera la palestra e batti Norman" },
-        { "p": "Route 118", "t": "Wake, in acqua a est di Mauville, quando vuoi", "o": true, "x": "Capopalestra di Sinnoh" }
+        {
+          "p": "Route 111",
+          "t": "Deserto: mini-boss nella sabbia e MN Surf (prima o dopo Norman)",
+          "o": true,
+          "it": [
+            826
+          ]
+        },
+        {
+          "p": "Route 110",
+          "t": "Batti Wally davanti alla Trick House",
+          "tr": [
+            658
+          ]
+        },
+        {
+          "p": "Route 110",
+          "t": "Supera i 3 piani della Trick House",
+          "tr": [
+            630
+          ]
+        },
+        {
+          "p": "Petalburg City",
+          "t": "Supera la palestra e batti Norman",
+          "tr": [
+            269
+          ]
+        },
+        {
+          "p": "Route 118",
+          "t": "Wake, in acqua a est di Mauville, quando vuoi",
+          "o": true,
+          "x": "Capopalestra di Sinnoh",
+          "tr": [
+            626
+          ]
+        }
       ]
     },
     {
       "title": "Verso Winona",
-      "caps": [10, 11],
+      "caps": [
+        10,
+        11
+      ],
       "steps": [
-        { "p": "Route 119", "t": "Da Route 118 sali a nord e libera l'Istituto Meteo dal Team Aqua" },
-        { "p": "Route 119", "t": "Batti il rivale" },
-        { "p": "Route 120", "t": "Oltre il ponte di legno, Steven ti dà il Devonscopio" },
-        { "p": "Fortree City", "t": "Batti Winona" },
-        { "p": "New Mauville", "t": "Si aprono New Mauville e le grotte dei Regi", "o": true }
+        {
+          "p": "Route 119",
+          "t": "Da Route 118 sali a nord e libera l'Istituto Meteo dal Team Aqua",
+          "tr": [
+            32
+          ]
+        },
+        {
+          "p": "Route 119",
+          "t": "Batti il rivale",
+          "tr": [
+            522,
+            525,
+            528,
+            531,
+            534,
+            537
+          ]
+        },
+        {
+          "p": "Route 120",
+          "t": "Oltre il ponte di legno, Steven ti dà il Devonscopio",
+          "it": [
+            877
+          ]
+        },
+        {
+          "p": "Fortree City",
+          "t": "Batti Winona",
+          "tr": [
+            270
+          ]
+        },
+        {
+          "p": "New Mauville",
+          "t": "Si aprono New Mauville e le grotte dei Regi",
+          "o": true
+        }
       ]
     },
     {
       "title": "Verso Tate & Liza",
-      "caps": [12, 13, 14],
+      "caps": [
+        12,
+        13,
+        14
+      ],
       "steps": [
-        { "p": "Route 121", "t": "Lotte obbligatorie sotto la pioggia" },
-        { "p": "Route 121", "t": "Byron", "o": true, "x": "Capopalestra di Sinnoh" },
-        { "p": "Lilycove City", "t": "Batti Dawn in città" },
-        { "p": "Pacifidlog Town", "t": "Uovo di fine gioco con un baby pseudo-leggendario", "o": true },
-        { "p": "Mt. Pyre", "t": "Sali in cima all'esterno: scena con Maxie" },
-        { "p": "Slateport City", "t": "Al porto, scena del Team Aqua: entra e guardali scappare" },
-        { "p": "Team Aqua Hideout", "t": "Sulla spiaggia a nord-est di Lilycove: sconfiggi il Team Aqua" },
-        { "p": "Route 124", "t": "Verso Mossdeep, lotte sotto il sole" },
-        { "p": "Mossdeep City", "t": "Super Amo" },
-        { "p": "Shoal Cave", "t": "Roark a nord di Mossdeep, con incontro statico Paradox o Ultracreatura", "o": true, "x": "Capopalestra di Sinnoh" },
-        { "p": "Mossdeep City", "t": "Batti Tate & Liza" }
+        {
+          "p": "Route 121",
+          "t": "Lotte obbligatorie sotto la pioggia"
+        },
+        {
+          "p": "Route 121",
+          "t": "Byron",
+          "o": true,
+          "x": "Capopalestra di Sinnoh",
+          "tr": [
+            711
+          ]
+        },
+        {
+          "p": "Lilycove City",
+          "t": "Batti Dawn in città",
+          "tr": [
+            858
+          ]
+        },
+        {
+          "p": "Pacifidlog Town",
+          "t": "Uovo di fine gioco con un baby pseudo-leggendario",
+          "o": true
+        },
+        {
+          "p": "Mt. Pyre",
+          "t": "Sali in cima all'esterno: scena con Maxie"
+        },
+        {
+          "p": "Slateport City",
+          "t": "Al porto, scena del Team Aqua: entra e guardali scappare"
+        },
+        {
+          "p": "Team Aqua Hideout",
+          "t": "Sulla spiaggia a nord-est di Lilycove: sconfiggi il Team Aqua",
+          "tr": [
+            30
+          ]
+        },
+        {
+          "p": "Route 124",
+          "t": "Verso Mossdeep, lotte sotto il sole"
+        },
+        {
+          "p": "Mossdeep City",
+          "t": "Super Amo",
+          "it": [
+            853
+          ]
+        },
+        {
+          "p": "Shoal Cave",
+          "t": "Roark a nord di Mossdeep, con incontro statico Paradox o Ultracreatura",
+          "o": true,
+          "x": "Capopalestra di Sinnoh"
+        },
+        {
+          "p": "Mossdeep City",
+          "t": "Batti Tate & Liza",
+          "tr": [
+            568
+          ]
+        }
       ]
     },
     {
       "title": "Verso Juan",
-      "caps": [15, 16],
+      "caps": [
+        15,
+        16
+      ],
       "steps": [
-        { "p": "Mossdeep City", "t": "Scena al Centro Spaziale con Steven e Drake" },
-        { "p": "Mossdeep City", "t": "MN Sub a casa di Steven, a ovest" },
-        { "p": "Magma Hideout", "t": "Dal Jagged Pass: libera il covo del Team Magma fino a Maxie" },
-        { "p": "Sootopolis City", "t": "Arriva a Sootopolis per sbloccare il volo" },
-        { "p": "Seafloor Cavern", "t": "Immergiti sulla Route 128 e sconfiggi il Team Aqua" },
-        { "p": "Cave of Origin", "t": "Parla con Steven, poi con Wallace" },
-        { "p": "Sky Pillar", "t": "In cima, batti Drake per liberare Rayquaza" },
-        { "p": "Sootopolis City", "t": "Allontana Archie e Maxie, ricevi la MN Cascata da Wallace" },
-        { "p": "Sootopolis City", "t": "Batti Juan" }
+        {
+          "p": "Mossdeep City",
+          "t": "Scena al Centro Spaziale con Steven e Drake"
+        },
+        {
+          "p": "Mossdeep City",
+          "t": "MN Sub a casa di Steven, a ovest",
+          "it": [
+            831
+          ]
+        },
+        {
+          "p": "Magma Hideout",
+          "t": "Dal Jagged Pass: libera il covo del Team Magma fino a Maxie",
+          "tr": [
+            601
+          ]
+        },
+        {
+          "p": "Sootopolis City",
+          "t": "Arriva a Sootopolis per sbloccare il volo"
+        },
+        {
+          "p": "Seafloor Cavern",
+          "t": "Immergiti sulla Route 128 e sconfiggi il Team Aqua",
+          "tr": [
+            34
+          ]
+        },
+        {
+          "p": "Cave of Origin",
+          "t": "Parla con Steven, poi con Wallace"
+        },
+        {
+          "p": "Sky Pillar",
+          "t": "In cima, batti Drake per liberare Rayquaza",
+          "tr": [
+            264
+          ]
+        },
+        {
+          "p": "Sootopolis City",
+          "t": "Allontana Archie e Maxie, ricevi la MN Cascata da Wallace",
+          "it": [
+            830
+          ]
+        },
+        {
+          "p": "Sootopolis City",
+          "t": "Batti Juan",
+          "tr": [
+            272
+          ]
+        }
       ]
     },
     {
       "title": "Lega Pokémon",
-      "caps": [17, 18],
+      "caps": [
+        17,
+        18
+      ],
       "steps": [
-        { "p": "Ever Grande City", "t": "Batti il rivale" },
-        { "p": "Ever Grande City", "t": "Batti Dawn" },
-        { "p": "Ever Grande City", "t": "Volkner", "o": true, "x": "Capopalestra di Sinnoh" },
-        { "p": "Victory Road", "t": "Attraversa la Via Vittoria e batti Wally" },
-        { "p": "Ever Grande City", "t": "Superquattro e Campione" }
+        {
+          "p": "Ever Grande City",
+          "t": "Batti il rivale",
+          "tr": [
+            661,
+            662,
+            663,
+            664,
+            665,
+            666
+          ]
+        },
+        {
+          "p": "Ever Grande City",
+          "t": "Batti Dawn",
+          "tr": [
+            859
+          ]
+        },
+        {
+          "p": "Ever Grande City",
+          "t": "Volkner",
+          "o": true,
+          "x": "Capopalestra di Sinnoh",
+          "tr": [
+            712
+          ]
+        },
+        {
+          "p": "Victory Road",
+          "t": "Attraversa la Via Vittoria e batti Wally",
+          "tr": [
+            519,
+            657
+          ]
+        },
+        {
+          "p": "Ever Grande City",
+          "t": "Superquattro e Campione",
+          "tr": [
+            589
+          ]
+        }
       ]
     }
   ]

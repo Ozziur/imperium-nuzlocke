@@ -38,7 +38,9 @@ export async function loadData() {
     const tr = await (await fetch('data/trainers.json')).json();
     data.trainers = tr.trainers;
     data.bosses = tr.bosses;
-    const items = (await (await fetch('data/items.json')).json()).items;
+    const itemsFile = await (await fetch('data/items.json')).json();
+    const items = itemsFile.items;
+    data.itemNames = itemsFile.names || [];
     const post = { title: 'Dopo la Lega', caps: [99], steps: [] };
     data.walk.splits.push(post);
     data.walk.splits.forEach((sp, si) => (sp.items = []));
@@ -246,14 +248,23 @@ export function walkthroughState(run) {
   const si = Math.max(0, splits.findIndex((sp) => Math.max(...sp.caps) >= run.capIndex));
   const idx = si === -1 ? splits.length - 1 : si;
   const done = run.walk || {};
+  const owned = new Set(run.ownedItems || []);
   // i passi si considerano fatti nelle parti già superate; gli oggetti no, si spuntano solo a mano
   const mark = (sp, k) => ({
     ...sp,
     index: k,
-    steps: sp.steps.map((st) => ({ ...st, done: k < idx || !!done[st.id] })),
-    items: (sp.items || []).map((it) => ({ ...it, done: !!done[it.id] })),
+    steps: sp.steps.map((st) => ({ ...st, done: k < idx || !!done[st.id] || stepAuto(run, st) })),
+    items: (sp.items || []).map((it) => ({ ...it, done: !!done[it.id] || (it.id != null && owned.has(it.id)) })),
   });
   return { split: mark(splits[idx], idx), all: splits.map(mark), current: idx };
+}
+
+/** Passo completato secondo il gioco: allenatore battuto, oggetto posseduto o starter ricevuto. */
+function stepAuto(run, st) {
+  if (st.tr && st.tr.some((id) => (run.gameBeaten || []).includes(id))) return true;
+  if (st.it && st.it.some((id) => (run.ownedItems || []).includes(id))) return true;
+  if (st.party && (run.mons.length > 0 || (run.knownPids || []).length > 0)) return true;
+  return false;
 }
 
 export function toggleStep(run, id) {

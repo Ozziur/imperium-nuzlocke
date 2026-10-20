@@ -37,6 +37,9 @@ const BALL_IDS = [1, 27]; // ITEM_POKE_BALL .. ITEM_CHERISH_BALL
 const SB1_TRAINER_FLAGS = 0x19c4;
 const TRAINER_FLAGS_START = 0x500;
 const MAX_TRAINER_ID = 900;
+// Zaino: tasche da SaveBlock1+0x500 a +0x1100, voci [id, quantità XOR chiave]; chiave in SaveBlock2+0x44.
+const SB1_BAG = [0x0500, 0x1100];
+const SB2_ITEM_KEY = 0x44;
 
 // Ordine dei 4 blocchi cifrati in base a personality % 24 (indice logico -> posizione).
 const ORDER = [
@@ -220,6 +223,16 @@ export function readGame(state, { withBoxes = false } = {}) {
         if ((mem.u8(sb1 + SB1_TRAINER_FLAGS + (n >> 3)) >> (n & 7)) & 1) out.push(id);
       }
       return out;
+    })(),
+    bag: (() => {
+      const key = mem.u16(sb2 + SB2_ITEM_KEY);
+      const out = new Set();
+      for (let o = SB1_BAG[0]; o < SB1_BAG[1]; o += 4) {
+        const id = mem.u16(sb1 + o);
+        const q = mem.u16(sb1 + o + 2) ^ key;
+        if (id > 0 && id < 1001 && q > 0 && q < 1000) out.add(id);
+      }
+      return [...out];
     })(),
     hasBalls: (() => {
       const id = mem.u16(sb1 + SB1_BALL_POCKET);
