@@ -173,11 +173,24 @@ export class Live {
       return true;
     }
 
+    // Pokémon spariti da questa lettura: se uno "nuovo" ha le stesse caratteristiche è lo stesso
+    // Pokémon con un codice diverso (il cambio di natura di Imperium riscrive la personalità).
+    const vanished = [...this.owned.values()].filter((m) => !now.has(m.pid));
+    const sameMon = (a, b) =>
+      a.species === b.species && a.otId === b.otId && a.metLocation === b.metLocation && a.metLevel === b.metLevel && a.exp === b.exp;
+
     for (const [pid, m] of now) {
       if (known.has(pid)) continue;
       known.add(pid);
       changed = true;
       if (run.mons.some((x) => x.pid === pid)) continue;
+      const twin = vanished.find((v) => sameMon(v, m));
+      if (twin) {
+        vanished.splice(vanished.indexOf(twin), 1);
+        const tracked = run.mons.find((x) => x.pid === twin.pid);
+        if (tracked) tracked.pid = pid;
+        continue;
+      }
       const fromBattle = this._pendingEnd?.enemy?.pid === pid || this.battle?.enemy?.pid === pid || this._lastWild?.pid === pid;
       let area = this.area;
       if (!run.mons.length && this.data.areaById.littleroot_town) area = this.data.areaById.littleroot_town; // starter
@@ -200,9 +213,10 @@ export class Live {
 
   /** Collega i Pokémon segnati a mano a quelli reali (stessa famiglia, ancora senza pid). */
   _link(run, now) {
-    const used = new Set(run.mons.map((m) => m.pid).filter(Boolean));
+    const used = new Set(run.mons.map((m) => m.pid).filter((p) => p && now.has(p)));
     for (const m of run.mons) {
-      if (m.pid) continue;
+      // senza codice, oppure vivo ma con un codice che non esiste più (es. dopo un cambio di natura)
+      if (m.pid && (now.has(m.pid) || !m.alive)) continue;
       for (const [pid, real] of now) {
         if (used.has(pid)) continue;
         if (N.family(real.species) === N.family(m.sid)) {

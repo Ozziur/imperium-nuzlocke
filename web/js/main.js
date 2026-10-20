@@ -767,6 +767,7 @@ function monView(body, uid) {
       <div class="field"><label>Causa (facoltativa)</label><input type="text" id="cause" placeholder="${esc(cap?.label || 'Allenatore o Pokémon selvatico')}"></div>
       <button class="btn block danger" id="btn-dead">È caduto</button>` : `<button class="btn block" id="btn-revive">Riporta in vita (correzione)</button>`}
     <div class="dialog-actions"><button class="btn primary" id="btn-save">Salva</button></div>
+    ${run.rules.nuzlocke ? '<button class="btn block" id="btn-remove" style="margin-top:8px">Elimina: registrato per errore</button><p class="hint">Toglie il Pokémon dal tracker e libera la zona che occupava.</p>' : ''}
     ${s?.m?.length ? `<div class="section-title">Mosse per livello</div><p class="hint">Tocca una mossa per la descrizione.</p><div class="moves">${s.m.map(([id, lv]) => moveHtml(id, lv)).join('')}</div>` : ''}`;
   on(body, '[data-evo]', 'click', async (e, el) => {
     N.setEvolution(run, uid, Number(el.dataset.evo));
@@ -785,6 +786,7 @@ function monView(body, uid) {
     toast('Riposa in pace.');
   });
   $('#btn-remove', body)?.addEventListener('click', async () => {
+    if (run.rules.nuzlocke && !confirm('Eliminare questo Pokémon dal tracker? La zona in cui era registrato tornerà libera.')) return;
     N.removeMon(run, uid);
     await persistRun();
     popView();

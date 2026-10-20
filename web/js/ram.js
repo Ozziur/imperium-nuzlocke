@@ -144,6 +144,7 @@ function decodeBoxMon(mem, addr) {
     nick: mem.text(addr + 8, 10),
     isEgg: !!((flags >> 2) & 1),
     shiny: shinyVal < 8,
+    exp: block(0, 1),
     metLocation: (m0 >>> 8) & 0xff,
     metLevel: (m0 >>> 16) & 0x7f,
     nature: pid % 25,
