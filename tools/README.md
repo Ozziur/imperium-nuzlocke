@@ -41,3 +41,12 @@ python3 tools/build_items.py items.xlsx web/data/imperium.json web/data/walkthro
 ```
 
 Ogni oggetto viene assegnato alla parte della guida in cui diventa disponibile (luogo, boss da battere, MN necessarie).
+
+## Allenatori e scontri importanti
+
+```
+python3 tools/build_trainers.py raw/raw_sets.json boss.xlsx web/data/imperium.json web/data/trainers.json
+```
+
+`boss.xlsx` è il foglio "Boss Battles" esportato come xlsx. Lo script abbina ogni scontro del foglio all'allenatore
+del calcolatore con la squadra più simile e stampa quelli che non riesce ad abbinare.

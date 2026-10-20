@@ -35,6 +35,9 @@ export async function loadData() {
   try {
     data.walk = await (await fetch('data/walkthrough.json')).json();
     data.walk.splits.forEach((sp, si) => sp.steps.forEach((st, i) => (st.id = `${si}-${i}`)));
+    const tr = await (await fetch('data/trainers.json')).json();
+    data.trainers = tr.trainers;
+    data.bosses = tr.bosses;
     const items = (await (await fetch('data/items.json')).json()).items;
     const post = { title: 'Dopo la Lega', caps: [99], steps: [] };
     data.walk.splits.push(post);

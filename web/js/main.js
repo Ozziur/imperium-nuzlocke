@@ -422,7 +422,22 @@ const typeIdx = (name) => app.data.types.indexOf(name);
 function battlePanel(g) {
   const foes = g.battlers.filter((b) => b.side === 1);
   const mine = g.battlers.filter((b) => b.side === 0);
-  return foes.map((b) => battlerCard(b, mine, true)).join('') + mine.map((b) => battlerCard(b, foes, false)).join('');
+  return trainerRow(g, foes) + foes.map((b) => battlerCard(b, mine, true)).join('') + mine.map((b) => battlerCard(b, foes, false)).join('');
+}
+
+/** Squadra completa dell'allenatore avversario, letta dal gioco: chi è in campo, chi è esausto. */
+function trainerRow(g, foes) {
+  if (!g.trainerBattle || !g.enemy?.length) return '';
+  const t = app.data.trainers[g.opponent];
+  const active = new Set(foes.map((b) => b.partyIndex));
+  const chips = g.enemy
+    .map((m, i) => {
+      const pct = m.maxHp ? Math.round((m.hp / m.maxHp) * 100) : 0;
+      const cls = m.hp === 0 ? 'ko' : active.has(i) ? 'on' : '';
+      return `<span class="tm ${cls}"><b>${esc(N.spName(m.species).split(' (')[0])}</b> <small>${m.level}</small><span class="mini"><span style="width:${pct}%"></span></span></span>`;
+    })
+    .join('');
+  return `<div class="trow"><div class="tname">${esc(t ? t.n.replace(/\d+$/, '') : 'Allenatore')} <small>${g.enemy.filter((m) => m.hp > 0).length}/${g.enemy.length}</small></div><div class="tchips">${chips}</div></div>`;
 }
 
 function battlerCard(b, targets, foe) {
@@ -778,16 +793,31 @@ function bossView(body, index = null) {
       <span class="chip">Level cap ${cap.level}</span></div>
       ${i === run.capIndex && !done ? '<button class="btn primary block" id="btn-beat" style="margin-top:10px">Boss superato: passa al prossimo</button>' : ''}
     </div>
-    ${teams.length ? '' : '<p class="hint">Nessuna squadra registrata per questo punto: vale solo il level cap.</p>'}
-    ${teams.map(teamHtml).join('')}
-    <div class="section-title">Tutti i level cap</div>
-    <div class="list">${caps
-      .map(
-        (c, k) => `<div class="item ${k < run.capIndex ? 'dim' : ''}" data-cap="${k}"><div class="main"><b>${esc(c.label)}</b></div>
-        <span class="status ${k === run.capIndex ? 'current' : k < run.capIndex ? 'caught' : ''}">Lv. ${c.level}</span></div>`,
-      )
-      .join('')}</div>
-    <p class="hint">Fonte: foglio "Boss Battles" e calcolatore di hzla (dati 1.3). I livelli negativi indicano Pokémon che si adattano al tuo livello.</p>`;
+    ${index == null ? `<button class="btn block" id="btn-capteam" style="margin-bottom:8px">Squadra del boss del level cap</button>
+    <input type="search" id="tr-search" placeholder="Cerca un allenatore tra tutti gli 859…" autocomplete="off">
+    <div class="list" id="tr-results" style="margin-top:6px"></div>` : ''}
+    ${index != null ? (teams.length ? teams.map(teamHtml).join('') : '<p class="hint">Nessuna squadra registrata per questo punto: vale solo il level cap.</p>') : ''}
+    ${index == null ? bossListHtml(run) : ''}
+    <p class="hint">Fonte: foglio "Boss Battles" e calcolatore di hzla (dati 1.3). "Dinamico" indica Pokémon che si adattano al tuo livello.</p>`;
+  const search = $('#tr-search', body);
+  const results = $('#tr-results', body);
+  search?.addEventListener('input', () => {
+    const q = search.value.trim().toLowerCase();
+    results.innerHTML = q.length < 2 ? '' : trainerSearchHtml(q);
+    $('#boss-list', body).hidden = q.length >= 2;
+  });
+  results?.addEventListener('click', (e) => {
+    const el = e.target.closest('[data-tr]');
+    if (el) pushView(app.data.trainers[el.dataset.tr].n, (b) => trainersView(b, [Number(el.dataset.tr)]));
+  });
+  on(body, '[data-boss]', 'click', (e, el) => {
+    const bo = app.data.bosses[el.dataset.boss];
+    pushView(bo.t.split(' - ')[0], (b) => trainersView(b, bo.ids, bo.t));
+  });
+  if (index == null && !sheet.scrolledToNext) {
+    sheet.scrolledToNext = true;
+    requestAnimationFrame(() => body.querySelector('.boss-split.current')?.scrollIntoView({ block: 'start' }));
+  }
   $('#btn-beat', body)?.addEventListener('click', async () => {
     N.advanceCap(run);
     await persistRun();
@@ -795,6 +825,48 @@ function bossView(body, index = null) {
     toast(run.capIndex >= caps.length ? 'Campione!' : `Nuovo level cap: ${N.currentCap(run).level}`);
   });
   on(body, '[data-cap]', 'click', (e, el) => pushView(caps[el.dataset.cap].label, (b) => bossView(b, Number(el.dataset.cap))));
+  $('#btn-capteam', body)?.addEventListener('click', () => pushView(cap.label, (b) => bossView(b, i)));
+}
+
+/** Tutti gli scontri importanti, divisi per parte della guida. */
+function bossListHtml(run) {
+  const w = N.walkthroughState(run);
+  const cur = w ? w.current : 0;
+  const splits = app.data.walk.splits;
+  const maxLv = (ids) => {
+    const lv = ids.flatMap((id) => (app.data.trainers[id]?.m || []).map((m) => m.lv || 0));
+    const top = Math.max(...lv, 0);
+    return top > 0 ? `Lv. ${top}` : 'dinamico';
+  };
+  const groups = splits
+    .map((sp, si) => {
+      const list = app.data.bosses.map((b, bi) => ({ ...b, bi })).filter((b) => b.s === si);
+      if (!list.length) return '';
+      return `<div class="boss-split ${si === cur ? 'current' : ''}"><div class="section-title">${si === cur ? '▶ ' : ''}${esc(sp.title)}</div>
+        <div class="list ${si < cur ? 'dim' : ''}">${list
+          .map(
+            (b) => `<div class="item" data-boss="${b.bi}"><div class="main"><b>${esc(b.t.split(' - ')[0])}</b><small>${esc(b.t.split(' - ').slice(1).join(' - ') || '')}</small></div>
+            ${b.o ? '<span class="status skipped">facoltativo</span>' : ''}<span class="status">${maxLv(b.ids)}</span></div>`,
+          )
+          .join('')}</div></div>`;
+    })
+    .join('');
+  return `<div id="boss-list">${groups}</div>`;
+}
+
+function trainerSearchHtml(q) {
+  const hits = Object.entries(app.data.trainers)
+    .filter(([, t]) => t.n.toLowerCase().includes(q) || t.m.some((m) => m.sp.toLowerCase().includes(q)))
+    .slice(0, 40);
+  if (!hits.length) return '<p class="empty">Nessun allenatore trovato.</p>';
+  return hits
+    .map(([id, t]) => `<div class="item" data-tr="${id}"><div class="main"><b>${esc(t.n)}</b><small>${t.m.map((m) => esc(m.sp)).join(', ')}</small></div>${t.d ? '<span class="status">doppia</span>' : ''}</div>`)
+    .join('');
+}
+
+function trainersView(body, ids, title = '') {
+  const teams = ids.map((id) => ({ name: app.data.trainers[id]?.n || `#${id}`, double: app.data.trainers[id]?.d, mons: app.data.trainers[id]?.m || [] }));
+  body.innerHTML = `${title ? `<p class="hint">${esc(title)}</p>` : ''}${ids.length > 2 ? '<p class="hint">Più varianti possibili: dipende dallo starter scelto.</p>' : ''}${teams.map(teamHtml).join('')}`;
 }
 
 function teamHtml(t) {
