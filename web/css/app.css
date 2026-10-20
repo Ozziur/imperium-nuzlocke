@@ -295,3 +295,13 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 
 .dialog-actions { display: flex; gap: 8px; margin-top: 12px; }
 .dialog-actions .btn { flex: 1; }
+
+/* guida */
+.filters { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px; }
+.fchip { border: 1px solid var(--line); background: var(--panel); color: var(--muted); border-radius: 999px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.fchip.on { background: var(--accent); color: var(--accent-ink); border-color: transparent; }
+.sub-title { font-size: 12px; color: var(--muted); font-weight: 700; margin: 8px 4px 2px; }
+.ik { font-size: 10px; font-weight: 800; padding: 2px 6px; border-radius: 6px; background: var(--panel-2); color: var(--muted); text-transform: uppercase; }
+.item-tm .ik { color: #8fb4ff; } .item-mega .ik { color: #d983b0; } .item-battle .ik { color: var(--warn); }
+.step b.iname { color: var(--text); }
+.step small { color: var(--muted); }

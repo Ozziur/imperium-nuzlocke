@@ -32,3 +32,12 @@
    ```
 
 Lo script stampa i nomi che non riesce a collegare a una specie: se ne compaiono, aggiorna `resolve()` o le tabelle di conversione.
+
+## Oggetti della guida (MT, Megapietre, strumenti premio)
+
+```
+curl -sLo items.xlsx "https://docs.google.com/spreadsheets/d/15CtHW7ISoxWuaZBN8elffq068-RdsAd-Onoovzde4ow/export?format=xlsx"
+python3 tools/build_items.py items.xlsx web/data/imperium.json web/data/walkthrough.json web/data/items.json
+```
+
+Ogni oggetto viene assegnato alla parte della guida in cui diventa disponibile (luogo, boss da battere, MN necessarie).

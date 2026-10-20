@@ -35,6 +35,14 @@ export async function loadData() {
   try {
     data.walk = await (await fetch('data/walkthrough.json')).json();
     data.walk.splits.forEach((sp, si) => sp.steps.forEach((st, i) => (st.id = `${si}-${i}`)));
+    const items = (await (await fetch('data/items.json')).json()).items;
+    const post = { title: 'Dopo la Lega', caps: [99], steps: [] };
+    data.walk.splits.push(post);
+    data.walk.splits.forEach((sp, si) => (sp.items = []));
+    items.forEach((it, i) => {
+      it.id = `i-${i}`;
+      (data.walk.splits[it.s] || post).items.push(it);
+    });
   } catch {
     data.walk = { splits: [] };
   }
@@ -235,7 +243,13 @@ export function walkthroughState(run) {
   const si = Math.max(0, splits.findIndex((sp) => Math.max(...sp.caps) >= run.capIndex));
   const idx = si === -1 ? splits.length - 1 : si;
   const done = run.walk || {};
-  const mark = (sp, k) => ({ ...sp, index: k, steps: sp.steps.map((st) => ({ ...st, done: k < idx || !!done[st.id] })) });
+  // i passi si considerano fatti nelle parti già superate; gli oggetti no, si spuntano solo a mano
+  const mark = (sp, k) => ({
+    ...sp,
+    index: k,
+    steps: sp.steps.map((st) => ({ ...st, done: k < idx || !!done[st.id] })),
+    items: (sp.items || []).map((it) => ({ ...it, done: !!done[it.id] })),
+  });
   return { split: mark(splits[idx], idx), all: splits.map(mark), current: idx };
 }
 

@@ -407,11 +407,12 @@ function guidePanel(run) {
   if (!w) return '';
   const cap = N.currentCap(run);
   const pending = w.split.steps.filter((st) => !st.done && !st.o).slice(0, 3);
-  const opt = w.split.steps.filter((st) => !st.done && st.o).length;
+  const show = guideFilters();
+  const opt = w.split.steps.filter((st) => !st.done && st.o).length + w.split.items.filter((it) => !it.done && show[it.k]).length;
   const done = run.capIndex >= app.data.caps.length;
   return `<div class="ph" data-go="guide"><b>${esc(w.split.title)}</b><small>${done ? 'Lega superata' : `prossimo boss: ${esc(cap.label)} · cap ${cap.level}`}</small></div>
     ${pending.map((st) => `<div class="step" data-step="${st.id}"><span class="ck"></span><span class="stx"><b>${esc(st.p)}</b> ${esc(st.t)}</span></div>`).join('') || '<div class="step"><span class="stx">Passi principali completati: vai al boss!</span></div>'}
-    ${opt ? `<div class="more" data-go="guide">${opt} attività facoltative in questa parte →</div>` : ''}`;
+    ${opt ? `<div class="more" data-go="guide">${opt} attività e oggetti facoltativi in questa parte →</div>` : ''}`;
 }
 
 // ---------- pannello di lotta ----------
@@ -809,6 +810,12 @@ function teamHtml(t) {
       .join('')}`;
 }
 
+const ITEM_KIND = { tm: 'MT', mega: 'Megapietre', battle: 'Strumenti' };
+
+function guideFilters() {
+  return { opt: true, tm: true, mega: true, battle: true, ...(app.settings.guideShow || {}) };
+}
+
 function guideView(body) {
   const run = app.run;
   const w = N.walkthroughState(run);
@@ -816,25 +823,29 @@ function guideView(body) {
     body.innerHTML = '<p class="empty">Guida non disponibile.</p>';
     return;
   }
-  const showOpt = app.settings.showOptional !== false;
+  const show = guideFilters();
+  const chip = (k, label) => `<button class="fchip ${show[k] ? 'on' : ''}" data-filter="${k}">${label}</button>`;
+  const stepHtml = (st) => `<div class="step big ${st.done ? 'done' : ''}" data-step="${st.id}"><span class="ck"></span><span class="stx"><b>${esc(st.p)}</b> ${esc(st.t)}${st.o ? ' <span class="opt">facoltativo</span>' : ''}${st.x ? ` <span class="opt">${esc(st.x)}</span>` : ''}</span></div>`;
+  const itemHtml = (it) => `<div class="step big item-${it.k} ${it.done ? 'done' : ''}" data-step="${it.id}"><span class="ck"></span><span class="stx"><span class="ik">${ITEM_KIND[it.k]}</span> <b class="iname">${esc(it.n)}</b>${it.p ? ` · ${esc(it.p)}` : ''}${it.c ? ` <small>(${esc(it.c)})</small>` : ''}</span></div>`;
   body.innerHTML = `
-    <div class="toggle ${showOpt ? 'on' : ''}" id="opt-t"><div class="main"><b>Mostra le attività facoltative</b><small>Capopalestra di Sinnoh, regali, oggetti</small></div><div class="switch"></div></div>
+    <div class="filters">${chip('opt', 'Attività facoltative')}${chip('tm', 'MT')}${chip('mega', 'Megapietre')}${chip('battle', 'Strumenti')}</div>
     ${w.all
-      .map(
-        (sp) => `<div class="section-title">${sp.index === w.current ? '▶ ' : ''}${esc(sp.title)}</div>
-        <div class="list ${sp.index < w.current ? 'dim' : ''}">${sp.steps
-          .filter((st) => showOpt || !st.o)
-          .map(
-            (st) => `<div class="step big ${st.done ? 'done' : ''}" data-step="${st.id}"><span class="ck"></span><span class="stx"><b>${esc(st.p)}</b> ${esc(st.t)}${st.o ? ' <span class="opt">facoltativo</span>' : ''}${st.x ? ` <span class="opt">${esc(st.x)}</span>` : ''}</span></div>`,
-          )
-          .join('')}</div>`,
-      )
+      .map((sp) => {
+        const steps = sp.steps.filter((st) => show.opt || !st.o);
+        const items = sp.items.filter((it) => show[it.k]);
+        if (!steps.length && !items.length) return '';
+        return `<div class="section-title">${sp.index === w.current ? '▶ ' : ''}${esc(sp.title)}</div>
+          <div class="list ${sp.index < w.current ? 'dim' : ''}">${steps.map(stepHtml).join('')}
+          ${items.length ? `<div class="sub-title">Oggetti disponibili</div>${items.map(itemHtml).join('')}` : ''}</div>`;
+      })
       .join('')}
-    <p class="hint">Riassunto della checklist ufficiale di emeraldimperium.info. Le parti precedenti al boss attuale risultano completate in automatico.</p>`;
-  $('#opt-t', body).addEventListener('click', async () => {
-    app.settings.showOptional = !showOpt;
+    <p class="hint">Guida: riassunto della checklist ufficiale di emeraldimperium.info. Oggetti: foglio "Item and NPC Locations" della documentazione di Imperium, assegnati alla parte in cui diventano disponibili.</p>`;
+  on(body, '[data-filter]', 'click', async (e, el) => {
+    const k = el.dataset.filter;
+    app.settings.guideShow = { ...show, [k]: !show[k] };
     await kv.set('settings', app.settings);
     render();
+    updateInfo();
   });
   on(body, '[data-step]', 'click', async (e, el) => {
     N.toggleStep(run, el.dataset.step);
@@ -843,7 +854,7 @@ function guideView(body) {
   });
   if (!sheet.scrolledToNext) {
     sheet.scrolledToNext = true;
-    requestAnimationFrame(() => body.querySelector('.step:not(.done)')?.scrollIntoView({ block: 'center' }));
+    requestAnimationFrame(() => body.querySelector('.list:not(.dim) .step:not(.done)')?.scrollIntoView({ block: 'center' }));
   }
 }
 
