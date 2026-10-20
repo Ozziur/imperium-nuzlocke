@@ -3,18 +3,19 @@
 const DIRS = ['Up', 'Down', 'Left', 'Right'];
 
 // Intensità: 0 spenta, 1 leggera, 2 media, 3 forte -> [durata ms, ampiezza 1-255]
-const LEVELS = [null, [12, 90], [18, 170], [26, 255]];
+const LEVELS = [null, [20, 120], [30, 200], [40, 255]];
+export const hapticConfig = { mode: 0 }; // 0 vibratore, 1 feedback di sistema
 
 /** Vibrazione breve: nell'app usa il vibratore di Android, nel browser la Vibration API. */
 export function haptic(level = 2, strong = false) {
   const l = LEVELS[level];
   if (!l) return;
-  const ms = strong ? l[0] + 4 : l[0];
+  const ms = strong ? l[0] + 6 : l[0];
   try {
-    if (window.AndroidBridge?.vibrate) window.AndroidBridge.vibrate(ms, l[1]);
+    if (window.AndroidBridge?.vibrate) window.AndroidBridge.vibrate(ms, l[1], hapticConfig.mode);
     else navigator.vibrate?.(ms);
-  } catch {
-    /* ignora */
+  } catch (e) {
+    console.warn('vibrazione', e);
   }
 }
 

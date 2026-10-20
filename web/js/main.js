@@ -1,5 +1,5 @@
 import { Emulator } from './emulator.js';
-import { setupControls, haptic } from './controls.js';
+import { setupControls, haptic, hapticConfig } from './controls.js';
 import { kv, requestPersistence } from './storage.js';
 import * as P from './patcher.js';
 import * as N from './nuzlocke.js';
@@ -124,6 +124,7 @@ async function enterGame(firstTime = false) {
   $('#setup').hidden = true;
   $('#game').hidden = false;
   hideBoot();
+  hapticConfig.mode = app.settings.hapticMode || 0;
   if (app.settings.haptics === true) app.settings.haptics = 2; // vecchio valore sì/no
   if (app.settings.haptics === false) app.settings.haptics = 0;
   app.controls ??= setupControls($('#pad'), app.emu, { haptics: () => app.settings.haptics });
@@ -1003,9 +1004,13 @@ async function menuView(body) {
     <div class="section-title">Impostazioni</div>
     <div class="field"><label>Vibrazione dei tasti</label>
       <div class="row">${segHtml('haptics', String(app.settings.haptics), [['0', 'Spenta'], ['1', 'Leggera'], ['2', 'Media'], ['3', 'Forte']])}<button class="btn small" id="btn-haptic">Prova</button></div></div>
+    <div class="field"><label>Tipo di vibrazione</label>
+      ${segHtml('hapticMode', String(app.settings.hapticMode || 0), [['0', 'Vibratore'], ['1', 'Come la tastiera']])}
+      <small id="vib-info">${esc(window.AndroidBridge?.vibrationInfo ? window.AndroidBridge.vibrationInfo() : 'Vibrazione del browser')}</small></div>
     <div class="field"><label>Volume</label><input type="range" id="vol" min="0" max="1.5" step="0.1" value="${app.settings.volume}"></div>
 
     <div class="section-title">Gioco installato</div>
+    <div class="card"><small>App ${esc(window.AndroidBridge?.version ? window.AndroidBridge.version() : 'web')}</small></div>
     <div class="card"><small>Emerald Imperium ${esc(install.version || '?')} · CRC ${esc(install.crc || '?')}</small></div>
     <button class="btn block" id="btn-update">Cerca aggiornamenti della patch</button>
     <p class="hint">Dati del tracker: Pokédex ufficiale, Encounter Tracker e Boss Battles della community di Imperium.</p>`;
@@ -1047,6 +1052,13 @@ async function menuView(body) {
     haptic(app.settings.haptics, true);
   });
   $('#btn-haptic', body).addEventListener('click', () => haptic(app.settings.haptics || 2, true));
+  on(body, '[data-seg="hapticMode"] button', 'click', async (e, el) => {
+    app.settings.hapticMode = Number(el.dataset.v);
+    hapticConfig.mode = app.settings.hapticMode;
+    el.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === el));
+    await kv.set('settings', app.settings);
+    haptic(app.settings.haptics || 2, true);
+  });
   $('#vol', body).addEventListener('change', async (e) => {
     app.settings.volume = Number(e.target.value);
     app.emu.setVolume(app.settings.volume);

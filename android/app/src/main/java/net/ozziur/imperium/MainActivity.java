@@ -3,7 +3,10 @@ package net.ozziur.imperium;
 import android.annotation.SuppressLint;
 import android.content.Intent;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.VibrationAttributes;
+import android.view.HapticFeedbackConstants;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.util.Base64;
@@ -187,17 +190,39 @@ public class MainActivity extends ComponentActivity {
             runOnUiThread(() -> createDocument.launch(fileName));
         }
 
-        /** Feedback aptico dei tasti: impulso breve con durata e intensità decise dalla pagina. */
+        /**
+         * Feedback aptico dei tasti. mode 0 = vibratore (impulso con durata e intensità),
+         * mode 1 = feedback aptico di sistema della vista (come la tastiera).
+         * L'impulso usa la categoria "media", quella prevista per i giochi, così non dipende
+         * dall'impostazione "vibrazione al tocco" del telefono.
+         */
         @JavascriptInterface
-        public void vibrate(int ms, int amplitude) {
+        public void vibrate(int ms, int amplitude, int mode) {
+            if (mode == 1) {
+                runOnUiThread(() -> webView.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP));
+                return;
+            }
             if (vibrator == null || !vibrator.hasVibrator() || ms <= 0) return;
             int amp = vibrator.hasAmplitudeControl() ? Math.max(1, Math.min(255, amplitude)) : VibrationEffect.DEFAULT_AMPLITUDE;
-            vibrator.vibrate(VibrationEffect.createOneShot(ms, amp));
+            VibrationEffect effect = VibrationEffect.createOneShot(ms, amp);
+            if (Build.VERSION.SDK_INT >= 33) {
+                vibrator.vibrate(effect, VibrationAttributes.createForUsage(VibrationAttributes.USAGE_MEDIA));
+            } else {
+                vibrator.vibrate(effect);
+            }
+        }
+
+        /** Informazioni per capire perché la vibrazione non si sente. */
+        @JavascriptInterface
+        public String vibrationInfo() {
+            boolean has = vibrator != null && vibrator.hasVibrator();
+            boolean amp = has && vibrator.hasAmplitudeControl();
+            return "vibratore " + (has ? "sì" : "no") + ", intensità " + (amp ? "regolabile" : "fissa") + ", Android API " + Build.VERSION.SDK_INT;
         }
 
         @JavascriptInterface
         public String version() {
-            return "0.4.0";
+            return "0.5.0";
         }
     }
 
