@@ -166,6 +166,15 @@ export class Live {
       }
     }
 
+    // Tanti Pokémon nuovi tutti insieme = salvataggio importato o stato caricato, non catture.
+    const fresh = [...now.keys()].filter((pid) => !known.has(pid) && !run.mons.some((x) => x.pid === pid));
+    if (fresh.length > 3) {
+      run.knownPids = [...new Set([...known, ...now.keys()])];
+      this._link(run, now);
+      this.owned = now;
+      return true;
+    }
+
     for (const [pid, m] of now) {
       if (known.has(pid)) continue;
       known.add(pid);

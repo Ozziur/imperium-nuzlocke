@@ -13,7 +13,14 @@ const ADDR = {
   gPlayerParty: 0x020375f8,
   gEnemyParty: 0x02037850,
   gTrainerBattleOpponent_A: 0x020008da,
+  gBattlersCount: 0x02000344,
+  gBattlerPartyIndexes: 0x02000348,
+  gBattlerPositions: 0x02000350,
+  gBattleMons: 0x02000360,
 };
+
+// struct BattlePokemon (0x60 byte), offset verificati su una lotta doppia in Imperium 1.3.1
+const BM = { size: 0x60, species: 0x00, stats: 0x02, moves: 0x0c, stages: 0x18, ability: 0x20, types: 0x22, pp: 0x25, hp: 0x2a, level: 0x2c, maxHp: 0x2e };
 
 const MON_SIZE = 100;
 const BOX_MON_SIZE = 80;
@@ -153,6 +160,36 @@ function readParty(mem, base, count) {
   return out;
 }
 
+/** Pokémon in campo durante una lotta (lato 0 = giocatore, 1 = avversario). */
+function readBattlers(mem) {
+  const count = Math.min(mem.u8(ADDR.gBattlersCount), 4);
+  const out = [];
+  for (let b = 0; b < count; b++) {
+    const a = ADDR.gBattleMons + b * BM.size;
+    const species = mem.u16(a + BM.species);
+    if (!species) continue;
+    const pos = mem.u8(ADDR.gBattlerPositions + b);
+    out.push({
+      battler: b,
+      side: pos & 1,
+      partyIndex: mem.u16(ADDR.gBattlerPartyIndexes + b * 2),
+      species,
+      // atk, def, vel, attSp, difSp
+      stats: [0, 1, 2, 3, 4].map((i) => mem.u16(a + BM.stats + i * 2)),
+      moves: [0, 1, 2, 3].map((i) => mem.u16(a + BM.moves + i * 2)),
+      pp: [0, 1, 2, 3].map((i) => mem.u8(a + BM.pp + i)),
+      // stadi: PS, Att, Dif, Vel, AttSp, DifSp, Prec, Elus (6 = neutro)
+      stages: [0, 1, 2, 3, 4, 5, 6, 7].map((i) => mem.u8(a + BM.stages + i) - 6),
+      ability: mem.u16(a + BM.ability),
+      types: [0, 1, 2].map((i) => mem.u8(a + BM.types + i)),
+      hp: mem.u16(a + BM.hp),
+      level: mem.u8(a + BM.level),
+      maxHp: mem.u16(a + BM.maxHp),
+    });
+  }
+  return out;
+}
+
 /** Fotografia dello stato di gioco utile al tracker. */
 export function readGame(state, { withBoxes = false } = {}) {
   const mem = new GbaMemory(state);
@@ -177,6 +214,7 @@ export function readGame(state, { withBoxes = false } = {}) {
     })(),
     party: readParty(mem, ADDR.gPlayerParty, mem.u8(ADDR.gPlayerPartyCount)),
     enemy: inBattle ? readParty(mem, ADDR.gEnemyParty, mem.u8(ADDR.gEnemyPartyCount)) : [],
+    battlers: inBattle ? readBattlers(mem) : [],
   };
 
   if (withBoxes) {

@@ -1,9 +1,10 @@
 import { Emulator } from './emulator.js';
-import { setupControls } from './controls.js';
+import { setupControls, haptic } from './controls.js';
 import { kv, requestPersistence } from './storage.js';
 import * as P from './patcher.js';
 import * as N from './nuzlocke.js';
 import { Live } from './live.js';
+import * as T from './types.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -14,7 +15,7 @@ const app = {
   run: null,
   data: null,
   controls: null,
-  settings: { volume: 1, haptics: true, speed: 2 },
+  settings: { volume: 1, haptics: 2, speed: 2 },
 };
 
 // ---------------------------------------------------------------- avvio
@@ -123,6 +124,8 @@ async function enterGame(firstTime = false) {
   $('#setup').hidden = true;
   $('#game').hidden = false;
   hideBoot();
+  if (app.settings.haptics === true) app.settings.haptics = 2; // vecchio valore sì/no
+  if (app.settings.haptics === false) app.settings.haptics = 0;
   app.controls ??= setupControls($('#pad'), app.emu, { haptics: () => app.settings.haptics });
   bindTopbar();
 
@@ -362,44 +365,105 @@ function updateInfo() {
     return;
   }
   el.hidden = false;
-  const caps = app.data.caps;
-  const done = run.capIndex >= caps.length;
+  const g = app.live?.game;
+  let html;
+  if (g?.inBattle && g.battlers?.length) html = battlePanel(g);
+  else {
+    const cs = app.live?.capStatus(run);
+    const warn = cs?.over.length
+      ? `<div class="ir warnrow" data-go="team"><span class="val">${cs.over.map((m) => `${esc(N.spName(m.species))} Lv. ${m.level}`).join(', ')} oltre il level cap ${cs.cap}</span></div>`
+      : '';
+    const area = app.live?.area;
+    html = warn + (area && isNewArea(run, area) ? newAreaPanel(run, area) : guidePanel(run));
+  }
+  el.innerHTML = html;
+  el.classList.toggle('battle', !!g?.inBattle);
+}
+
+/** Zona mai visitata: nella Nuzlocke senza registrazione, altrimenti senza catture. */
+function isNewArea(run, area) {
+  if (!area.enc.length) return false;
+  if (run.rules.nuzlocke) return !run.areas[area.id];
+  return !run.mons.some((m) => m.area === area.id);
+}
+
+const METHOD_SHORT = { land: 'Erba', surf: 'Surf', old: 'Amo V.', good: 'Amo B.', super: 'Super Amo', rock: 'Spaccar.', gift: 'Regali' };
+
+function newAreaPanel(run, area) {
+  const groups = N.areaEncounters(run, area);
+  return `<div class="ph" data-go="here"><b>${esc(area.name)}</b><small>zona nuova · tocca per i dettagli</small></div>
+    ${groups
+      .map(
+        (gr) => `<div class="enc-row"><span class="lbl">${METHOD_SHORT[gr.method] || gr.label}</span><span class="chips">${gr.mons
+          .map((m) => `<span class="ech ${m.dupe ? 'dupe' : ''}">${esc(N.spName(m.sid))}${m.pct != null ? ` <i>${m.pct}%</i>` : ''}</span>`)
+          .join('')}</span></div>`,
+      )
+      .join('')}`;
+}
+
+function guidePanel(run) {
+  const w = N.walkthroughState(run);
+  if (!w) return '';
   const cap = N.currentCap(run);
-  const teams = done ? [] : N.bossTeams(run, cap);
-  const types = [...new Set(teams.flatMap((t) => t.mons.flatMap((m) => (m.sid ? N.sp(m.sid)?.t || [] : []))))];
-  const rows = [
-    `<div class="ir" data-go="boss"><span class="lbl">Boss</span><span class="val">${done ? 'Lega superata' : `${esc(cap.label)} <small>· cap ${cap.level}</small>`}</span></div>`,
-  ];
-  if (types.length) rows.push(`<div class="ir" data-go="boss"><span class="lbl">Tipi</span><span class="types">${types.map((t) => `<span class="type t-${t}">${t}</span>`).join('')}</span></div>`);
-  const area = app.live?.area;
-  const cs = app.live?.capStatus(run);
-  if (cs?.over.length) rows.push(`<div class="ir" data-go="team"><span class="lbl">Level cap</span><span class="val" style="color:var(--warn)">${cs.over.map((m) => `${esc(N.spName(m.species))} Lv. ${m.level}`).join(', ')} oltre il ${cs.cap}</span></div>`);
-  if (area) {
-    const rec = run.areas[area.id];
-    let status = '';
-    if (run.rules.nuzlocke) {
-      const m = rec?.mon && run.mons.find((x) => x.uid === rec.mon);
-      status = !rec ? (N.areaHasFreshEncounter(run, area) ? 'incontro disponibile' : 'solo duplicati') : rec.status === 'caught' ? `preso: ${esc(m ? m.nick || N.spName(m.sid) : N.spName(rec.sid))}` : rec.status === 'failed' ? 'incontro perso' : 'saltata';
-    } else {
-      const n = run.mons.filter((m) => m.area === area.id).length;
-      status = `${area.enc.reduce((k, g) => k + g.p.length, 0)} specie${n ? ` · ${n} presi` : ''}`;
-    }
-    rows.push(`<div class="ir" data-go="here"><span class="lbl">Sei a</span><span class="val">${esc(area.name)} <small>· ${status}</small></span></div>`);
-  }
-  if (run.rules.nuzlocke) {
-    const st = N.stats(run);
-    const next = N.nextOpenArea(run);
-    if (!area || next !== area) rows.push(`<div class="ir" data-go="zone"><span class="lbl">Prossima</span><span class="val">${next ? esc(next.name) : 'Tutte registrate'} <small>· ${st.alive} vivi, ${st.dead} caduti</small></span></div>`);
-  } else {
-    const last = run.mons[run.mons.length - 1];
-    rows.push(`<div class="ir" data-go="team"><span class="lbl">Catturati</span><span class="val">${run.mons.length}${last ? ` <small>· ultimo: ${esc(last.nick || N.spName(last.sid))}</small>` : ''}</span></div>`);
-  }
-  el.innerHTML = rows.join('');
+  const pending = w.split.steps.filter((st) => !st.done && !st.o).slice(0, 3);
+  const opt = w.split.steps.filter((st) => !st.done && st.o).length;
+  const done = run.capIndex >= app.data.caps.length;
+  return `<div class="ph" data-go="guide"><b>${esc(w.split.title)}</b><small>${done ? 'Lega superata' : `prossimo boss: ${esc(cap.label)} · cap ${cap.level}`}</small></div>
+    ${pending.map((st) => `<div class="step" data-step="${st.id}"><span class="ck"></span><span class="stx"><b>${esc(st.p)}</b> ${esc(st.t)}</span></div>`).join('') || '<div class="step"><span class="stx">Passi principali completati: vai al boss!</span></div>'}
+    ${opt ? `<div class="more" data-go="guide">${opt} attività facoltative in questa parte →</div>` : ''}`;
+}
+
+// ---------- pannello di lotta ----------
+
+const typeIdx = (name) => app.data.types.indexOf(name);
+
+function battlePanel(g) {
+  const foes = g.battlers.filter((b) => b.side === 1);
+  const mine = g.battlers.filter((b) => b.side === 0);
+  return foes.map((b) => battlerCard(b, mine, true)).join('') + mine.map((b) => battlerCard(b, foes, false)).join('');
+}
+
+function battlerCard(b, targets, foe) {
+  const sp = N.sp(b.species);
+  const types = [...new Set(b.types)].filter((t) => t && t !== 10);
+  const ab = app.data.abilities[b.ability] || ['', ''];
+  const pct = b.maxHp ? Math.round((b.hp / b.maxHp) * 100) : 0;
+  const spe = b.stats[2] * T.stageMult(b.stages[3]);
+  const faster = targets.length ? targets.every((t) => spe > t.stats[2] * T.stageMult(t.stages[3])) : null;
+  const slower = targets.length ? targets.every((t) => spe < t.stats[2] * T.stageMult(t.stages[3])) : null;
+  const STN = ['', 'Att', 'Dif', 'Vel', 'AttSp', 'DifSp', 'Prec', 'Elus'];
+  const stages = b.stages.map((v, i) => (i && v ? `<span class="${v > 0 ? 'up' : 'down'}">${STN[i]} ${v > 0 ? '+' : ''}${v}</span>` : '')).join('');
+  const moves = b.moves
+    .map((id, i) => {
+      if (!id) return '';
+      const m = app.data.moves[id];
+      if (!m) return '';
+      const [name, type, cat, pow] = m;
+      const mults = cat === 2 ? [] : targets.map((t) => T.effectiveness(typeIdx(type), t.types, (app.data.abilities[t.ability] || [''])[0]));
+      const best = mults.length ? Math.max(...mults) : 1;
+      const cls = cat === 2 ? 'es' : best === 0 ? 'e0' : best >= 2 ? 'e2' : best < 1 ? 'eh' : 'e1';
+      const stab = cat !== 2 && types.includes(typeIdx(type));
+      return `<span class="bm ${cls}"><span class="tdot t-${type}"></span>${esc(name)}${stab ? '*' : ''} <i>${cat === 2 ? 'stato' : pow > 1 ? pow : 'var.'}</i>${mults.length ? ` <em>${mults.map(T.multLabel).join('|')}</em>` : ''}${foe ? '' : ` <u>${b.pp[i]}</u>`}</span>`;
+    })
+    .join('');
+  return `<div class="bcard ${foe ? 'foe' : 'me'}">
+    <div class="bh"><b>${esc(sp ? sp.n : '#' + b.species)}</b><small>Lv. ${b.level}</small>${types.map((t) => `<span class="type t-${app.data.types[t]}">${app.data.types[t]}</span>`).join('')}
+      <span class="grow"></span><span class="spd ${faster ? 'fast' : slower ? 'slow' : ''}" title="Velocità">${faster ? '▲' : slower ? '▼' : '='} ${Math.round(spe)}</span></div>
+    <div class="hp"><span style="width:${pct}%;background:${pct > 50 ? 'var(--accent)' : pct > 20 ? 'var(--warn)' : 'var(--danger)'}"></span></div>
+    <div class="bsub"><span title="${esc(ab[1])}">${esc(ab[0])}</span> · ${foe ? `${pct}%` : `${b.hp}/${b.maxHp}`}${stages ? ` · ${stages}` : ''}</div>
+    <div class="bmoves">${moves}</div></div>`;
 }
 
 $('#info').addEventListener('click', (e) => {
   app.emu.resumeAudio();
-  const go = e.target.closest('[data-go]')?.dataset.go || 'boss';
+  const step = e.target.closest('[data-step]');
+  if (step) {
+    N.toggleStep(app.run, step.dataset.step);
+    persistRun();
+    return;
+  }
+  if (e.target.closest('.bcard')) return; // durante la lotta il pannello è solo informativo
+  const go = e.target.closest('[data-go]')?.dataset.go || 'guide';
   if (go === 'here' && app.live?.area) {
     openTracker('zone');
     const id = app.live.area.id;
@@ -412,7 +476,8 @@ let liveSig = '';
 function onLiveUpdate(live) {
   const g = live.game;
   const cs = live.capStatus(app.run);
-  const sig = [live.area?.id, g?.inBattle, cs?.over.length, app.run?.updated].join('|');
+  const bsig = g?.inBattle ? (g.battlers || []).map((b) => [b.species, b.hp, b.pp.join(','), b.stages.join(','), b.level].join(':')).join('/') : '';
+  const sig = [live.area?.id, g?.inBattle, cs?.over.length, app.run?.updated, bsig].join('|');
   if (sig === liveSig) return;
   liveSig = sig;
   updateCapChip();
@@ -429,6 +494,7 @@ function trackerTabs() {
     ['team', nz ? 'Squadra' : 'Catturati'],
     ...(nz ? [['grave', 'Cimitero']] : []),
     ['boss', 'Boss'],
+    ['guide', 'Guida'],
     ['rules', 'Partita'],
   ];
 }
@@ -439,7 +505,7 @@ function openTracker(tab) {
 }
 
 function trackerView(body) {
-  ({ zone: zonesView, team: teamView, grave: graveView, boss: bossView, rules: rulesView })[sheet.tab](body);
+  ({ zone: zonesView, team: teamView, grave: graveView, boss: bossView, guide: guideView, rules: rulesView })[sheet.tab](body);
 }
 
 function zonesView(body) {
@@ -742,6 +808,44 @@ function teamHtml(t) {
       .join('')}`;
 }
 
+function guideView(body) {
+  const run = app.run;
+  const w = N.walkthroughState(run);
+  if (!w) {
+    body.innerHTML = '<p class="empty">Guida non disponibile.</p>';
+    return;
+  }
+  const showOpt = app.settings.showOptional !== false;
+  body.innerHTML = `
+    <div class="toggle ${showOpt ? 'on' : ''}" id="opt-t"><div class="main"><b>Mostra le attività facoltative</b><small>Capopalestra di Sinnoh, regali, oggetti</small></div><div class="switch"></div></div>
+    ${w.all
+      .map(
+        (sp) => `<div class="section-title">${sp.index === w.current ? '▶ ' : ''}${esc(sp.title)}</div>
+        <div class="list ${sp.index < w.current ? 'dim' : ''}">${sp.steps
+          .filter((st) => showOpt || !st.o)
+          .map(
+            (st) => `<div class="step big ${st.done ? 'done' : ''}" data-step="${st.id}"><span class="ck"></span><span class="stx"><b>${esc(st.p)}</b> ${esc(st.t)}${st.o ? ' <span class="opt">facoltativo</span>' : ''}${st.x ? ` <span class="opt">${esc(st.x)}</span>` : ''}</span></div>`,
+          )
+          .join('')}</div>`,
+      )
+      .join('')}
+    <p class="hint">Riassunto della checklist ufficiale di emeraldimperium.info. Le parti precedenti al boss attuale risultano completate in automatico.</p>`;
+  $('#opt-t', body).addEventListener('click', async () => {
+    app.settings.showOptional = !showOpt;
+    await kv.set('settings', app.settings);
+    render();
+  });
+  on(body, '[data-step]', 'click', async (e, el) => {
+    N.toggleStep(run, el.dataset.step);
+    await persistRun();
+    render();
+  });
+  if (!sheet.scrolledToNext) {
+    sheet.scrolledToNext = true;
+    requestAnimationFrame(() => body.querySelector('.step:not(.done)')?.scrollIntoView({ block: 'center' }));
+  }
+}
+
 function segHtml(id, value, options) {
   return `<div class="seg" data-seg="${id}">${options.map(([v, l]) => `<button data-v="${v}" class="${v === value ? 'on' : ''}">${l}</button>`).join('')}</div>`;
 }
@@ -897,7 +1001,8 @@ async function menuView(body) {
     <div class="row" style="margin-top:6px"><button class="btn grow" id="btn-export-run">Backup tracker</button><label class="btn grow">Ripristina tracker<input type="file" id="run-input" hidden></label></div>
 
     <div class="section-title">Impostazioni</div>
-    ${toggleHtml('haptics', app.settings.haptics, 'Vibrazione dei tasti', 'Feedback leggero alla pressione')}
+    <div class="field"><label>Vibrazione dei tasti</label>
+      <div class="row">${segHtml('haptics', String(app.settings.haptics), [['0', 'Spenta'], ['1', 'Leggera'], ['2', 'Media'], ['3', 'Forte']])}<button class="btn small" id="btn-haptic">Prova</button></div></div>
     <div class="field"><label>Volume</label><input type="range" id="vol" min="0" max="1.5" step="0.1" value="${app.settings.volume}"></div>
 
     <div class="section-title">Gioco installato</div>
@@ -917,6 +1022,8 @@ async function menuView(body) {
     if (!f) return;
     if (!confirm(`Sostituire il salvataggio di "${app.run.name}" con ${f.name}? Il gioco ripartirà.`)) return;
     await app.emu.importSave(app.run.id, new Uint8Array(await f.arrayBuffer()));
+    delete app.run.knownPids; // i Pokémon del salvataggio importato non sono catture nuove
+    await N.saveRun(app.run);
     await switchRun(app.run.id, { flush: false });
   });
   $('#btn-export-run', body).addEventListener('click', () => downloadText(`${slug(app.run.name)}-tracker.json`, N.exportRun(app.run)));
@@ -933,11 +1040,13 @@ async function menuView(body) {
       toast(err.message);
     }
   });
-  on(body, '[data-toggle="haptics"]', 'click', async (e, el) => {
-    app.settings.haptics = !app.settings.haptics;
-    el.classList.toggle('on', app.settings.haptics);
+  on(body, '[data-seg="haptics"] button', 'click', async (e, el) => {
+    app.settings.haptics = Number(el.dataset.v);
+    el.parentElement.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === el));
     await kv.set('settings', app.settings);
+    haptic(app.settings.haptics, true);
   });
+  $('#btn-haptic', body).addEventListener('click', () => haptic(app.settings.haptics || 2, true));
   $('#vol', body).addEventListener('change', async (e) => {
     app.settings.volume = Number(e.target.value);
     app.emu.setVolume(app.settings.volume);

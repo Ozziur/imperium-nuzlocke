@@ -187,17 +187,17 @@ public class MainActivity extends ComponentActivity {
             runOnUiThread(() -> createDocument.launch(fileName));
         }
 
-        /** Feedback aptico dei tasti: 0 = tocco leggero, 1 = clic (A/B). */
+        /** Feedback aptico dei tasti: impulso breve con durata e intensità decise dalla pagina. */
         @JavascriptInterface
-        public void haptic(int kind) {
-            if (vibrator == null || !vibrator.hasVibrator()) return;
-            vibrator.vibrate(VibrationEffect.createPredefined(
-                    kind == 1 ? VibrationEffect.EFFECT_CLICK : VibrationEffect.EFFECT_TICK));
+        public void vibrate(int ms, int amplitude) {
+            if (vibrator == null || !vibrator.hasVibrator() || ms <= 0) return;
+            int amp = vibrator.hasAmplitudeControl() ? Math.max(1, Math.min(255, amplitude)) : VibrationEffect.DEFAULT_AMPLITUDE;
+            vibrator.vibrate(VibrationEffect.createOneShot(ms, amp));
         }
 
         @JavascriptInterface
         public String version() {
-            return "0.3.0";
+            return "0.4.0";
         }
     }
 

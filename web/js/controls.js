@@ -2,11 +2,17 @@
 
 const DIRS = ['Up', 'Down', 'Left', 'Right'];
 
-// Vibrazione breve: nell'app usa gli effetti predefiniti di Android, nel browser la Vibration API.
-function haptic(strong = false) {
+// Intensità: 0 spenta, 1 leggera, 2 media, 3 forte -> [durata ms, ampiezza 1-255]
+const LEVELS = [null, [12, 90], [18, 170], [26, 255]];
+
+/** Vibrazione breve: nell'app usa il vibratore di Android, nel browser la Vibration API. */
+export function haptic(level = 2, strong = false) {
+  const l = LEVELS[level];
+  if (!l) return;
+  const ms = strong ? l[0] + 4 : l[0];
   try {
-    if (window.AndroidBridge?.haptic) window.AndroidBridge.haptic(strong ? 1 : 0);
-    else navigator.vibrate?.(strong ? 14 : 8);
+    if (window.AndroidBridge?.vibrate) window.AndroidBridge.vibrate(ms, l[1]);
+    else navigator.vibrate?.(ms);
   } catch {
     /* ignora */
   }
@@ -21,8 +27,8 @@ export function setupControls(root, emu, opts = {}) {
     counts.set(btn, n);
     if (n === 1) {
       emu.press(btn);
-      const on = typeof opts.haptics === 'function' ? opts.haptics() : opts.haptics !== false;
-      if (on) haptic(btn === 'A' || btn === 'B');
+      const level = typeof opts.haptics === 'function' ? opts.haptics() : 2;
+      if (level) haptic(level, btn === 'A' || btn === 'B');
       root.querySelectorAll(`[data-btn="${btn}"], [data-dir="${btn}"]`).forEach((el) => el.classList.add('on'));
     }
   };

@@ -308,6 +308,8 @@ caps = [{"label": l, "level": lv_, "teams": ts} for l, lv_, ts in CAPS]
 out_moves = {int(k): [m["name"], TYPES[m["type"]] if 0 < m["type"] < len(TYPES) else "???", m["cat"],
                       m["power"], m["acc"], m["pp"], m["description"]] for k, m in moves.items()}
 
+out_abilities = {int(k): [v.get("name", ""), v.get("description", "")] for k, v in abilities.items()}
+
 data = {
     "game": "Pokémon Emerald Imperium",
     "dataVersion": "1.3.1-dex / 1.3 boss",
@@ -315,6 +317,8 @@ data = {
     "species": out_species,
     # mosse: id -> [nome, tipo, categoria 0 fisica/1 speciale/2 stato, potenza, precisione, PP, descrizione]
     "moves": out_moves,
+    # abilità: id -> [nome, descrizione]
+    "abilities": out_abilities,
     "areas": areas,
     "caps": caps,
 }

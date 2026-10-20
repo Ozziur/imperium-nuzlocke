@@ -32,6 +32,12 @@ export async function loadData() {
   data.moveByName = {};
   for (const [id, m] of Object.entries(data.moves)) data.moveByName[norm(m[0])] = Number(id);
   data.moveIdByName = (name) => data.moveByName[norm(name)];
+  try {
+    data.walk = await (await fetch('data/walkthrough.json')).json();
+    data.walk.splits.forEach((sp, si) => sp.steps.forEach((st, i) => (st.id = `${si}-${i}`)));
+  } catch {
+    data.walk = { splits: [] };
+  }
   return data;
 }
 
@@ -218,6 +224,25 @@ export function stats(run) {
 export function nextOpenArea(run) {
   if (!run.rules.nuzlocke) return null;
   return data.areas.find((a) => !run.areas[a.id] && a.enc.length);
+}
+
+// ---------- guida ----------
+
+/** Parte della guida legata al level cap attuale, con i passi già fatti segnati. */
+export function walkthroughState(run) {
+  const splits = data.walk.splits;
+  if (!splits.length) return null;
+  const si = Math.max(0, splits.findIndex((sp) => Math.max(...sp.caps) >= run.capIndex));
+  const idx = si === -1 ? splits.length - 1 : si;
+  const done = run.walk || {};
+  const mark = (sp, k) => ({ ...sp, index: k, steps: sp.steps.map((st) => ({ ...st, done: k < idx || !!done[st.id] })) });
+  return { split: mark(splits[idx], idx), all: splits.map(mark), current: idx };
+}
+
+export function toggleStep(run, id) {
+  run.walk ??= {};
+  if (run.walk[id]) delete run.walk[id];
+  else run.walk[id] = Date.now();
 }
 
 // ---------- backup ----------
