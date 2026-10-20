@@ -262,6 +262,35 @@ export function toggleStep(run, id) {
   else run.walk[id] = Date.now();
 }
 
+// ---------- allenatori battuti ----------
+
+/** Battuto secondo il gioco o segnato a mano (il segno manuale vince). */
+export function bossBeaten(run, bossIndex) {
+  const manual = run.beatenManual?.[bossIndex];
+  if (manual != null) return { beaten: manual, manual: true };
+  return { beaten: autoBeaten(run, bossIndex), manual: false };
+}
+
+/** Le varianti del rivale ("If You Chose ...") contano come battute se una qualsiasi lo è. */
+function autoBeaten(run, bossIndex) {
+  const b = data.bosses[bossIndex];
+  if (!b) return false;
+  const won = (x) => x.ids.some((id) => (run.gameBeaten || []).includes(id));
+  if (won(b)) return true;
+  const group = b.t.split(' (If You Chose')[0];
+  if (group === b.t) return false;
+  return data.bosses.some((x) => x.s === b.s && x.t.startsWith(group) && won(x));
+}
+
+export function toggleBossBeaten(run, bossIndex) {
+  run.beatenManual ??= {};
+  const cur = bossBeaten(run, bossIndex);
+  const auto = autoBeaten(run, bossIndex);
+  const next = !cur.beaten;
+  if (next === auto) delete run.beatenManual[bossIndex]; // torna a seguire il gioco
+  else run.beatenManual[bossIndex] = next;
+}
+
 // ---------- backup ----------
 
 export function exportRun(run) {

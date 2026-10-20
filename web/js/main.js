@@ -798,6 +798,7 @@ function bossView(body, index = null) {
     <div class="list" id="tr-results" style="margin-top:6px"></div>` : ''}
     ${index != null ? (teams.length ? teams.map(teamHtml).join('') : '<p class="hint">Nessuna squadra registrata per questo punto: vale solo il level cap.</p>') : ''}
     ${index == null ? bossListHtml(run) : ''}
+    <p class="hint">Il cerchio a sinistra segna lo scontro come battuto. Gli scontri vinti nel gioco si spuntano da soli (✓); un segno messo a mano ha la precedenza.</p>
     <p class="hint">Fonte: foglio "Boss Battles" e calcolatore di hzla (dati 1.3). "Dinamico" indica Pokémon che si adattano al tuo livello.</p>`;
   const search = $('#tr-search', body);
   const results = $('#tr-results', body);
@@ -810,7 +811,13 @@ function bossView(body, index = null) {
     const el = e.target.closest('[data-tr]');
     if (el) pushView(app.data.trainers[el.dataset.tr].n, (b) => trainersView(b, [Number(el.dataset.tr)]));
   });
-  on(body, '[data-boss]', 'click', (e, el) => {
+  on(body, '[data-boss]', 'click', async (e, el) => {
+    if (e.target.closest('[data-beat]')) {
+      N.toggleBossBeaten(run, Number(el.dataset.boss));
+      await persistRun();
+      render();
+      return;
+    }
     const bo = app.data.bosses[el.dataset.boss];
     pushView(bo.t.split(' - ')[0], (b) => trainersView(b, bo.ids, bo.t));
   });
@@ -845,8 +852,11 @@ function bossListHtml(run) {
       return `<div class="boss-split ${si === cur ? 'current' : ''}"><div class="section-title">${si === cur ? '▶ ' : ''}${esc(sp.title)}</div>
         <div class="list ${si < cur ? 'dim' : ''}">${list
           .map(
-            (b) => `<div class="item" data-boss="${b.bi}"><div class="main"><b>${esc(b.t.split(' - ')[0])}</b><small>${esc(b.t.split(' - ').slice(1).join(' - ') || '')}</small></div>
-            ${b.o ? '<span class="status skipped">facoltativo</span>' : ''}<span class="status">${maxLv(b.ids)}</span></div>`,
+            (b) => {
+              const st = N.bossBeaten(run, b.bi);
+              return `<div class="item ${st.beaten ? 'beaten' : ''}" data-boss="${b.bi}"><span class="bcheck" data-beat="${b.bi}" title="Battuto"></span><div class="main"><b>${esc(b.t.split(' - ')[0])}</b><small>${esc(b.t.split(' - ').slice(1).join(' - ') || '')}</small></div>
+            ${st.beaten ? `<span class="status caught">${st.manual ? 'battuto' : 'battuto ✓'}</span>` : b.o ? '<span class="status skipped">facoltativo</span>' : ''}<span class="status">${maxLv(b.ids)}</span></div>`;
+            },
           )
           .join('')}</div></div>`;
     })

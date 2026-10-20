@@ -6,6 +6,13 @@ import * as N from './nuzlocke.js';
 const TICK_MS = 1000;
 const BOX_EVERY = 4; // i box si leggono ogni 4 tick (e a fine lotta)
 
+/** Allenatori che chiudono un punto di level cap: l'ultimo della serie, o una qualsiasi variante del rivale. */
+export function capKeyIds(cap) {
+  if (!cap.teams.length) return [];
+  if (cap.teams.every((t) => /Rival/.test(t.name))) return cap.teams.map((t) => t.id);
+  return [cap.teams[cap.teams.length - 1].id];
+}
+
 export class Live {
   constructor({ emu, data, maps, getRun, persist, toast, onUpdate }) {
     Object.assign(this, { emu, data, maps, getRun, persist, toast, onUpdate });
@@ -73,6 +80,7 @@ export class Live {
     changed = this._battle(run, g, prev) || changed;
     if (g.boxes) changed = this._owned(run, g) || changed;
     changed = this._party(run, g) || changed;
+    changed = this._beaten(run, g) || changed;
     const cs = this.capStatus(run);
     if (cs?.over.length && this._capWarned !== run.capIndex) {
       this._capWarned = run.capIndex;
@@ -132,18 +140,7 @@ export class Live {
         changed = true;
       }
     }
-    // Boss: vittoria se la squadra non è tutta esausta e non si è finiti in un Centro Pokémon.
-    if (b.trainer && b.opponent != null) {
-      const cap = N.currentCap(run);
-      const isBoss = run.capIndex < this.data.caps.length && cap.teams.some((t) => t.id === b.opponent);
-      const alive = g.party.some((m) => m.hp > 0 && !m.isEgg);
-      if (isBoss && alive && this.mk === b.mk) {
-        N.advanceCap(run);
-        const next = N.currentCap(run);
-        this.toast(run.capIndex >= this.data.caps.length ? 'Lega superata!' : `${cap.label} superato. Nuovo level cap: ${next.level}`);
-        changed = true;
-      }
-    }
+    // I boss superati si riconoscono dai flag del gioco (vedi _beaten).
     return changed;
   }
 
@@ -214,6 +211,31 @@ export class Live {
         }
       }
     }
+  }
+
+  // ---------- allenatori battuti (dai flag del gioco) ----------
+
+  _beaten(run, g) {
+    if (!g.beaten) return false;
+    const key = g.beaten.join(',');
+    if (key === this._lastBeaten) return false;
+    this._lastBeaten = key;
+    run.gameBeaten = g.beaten;
+    let changed = true;
+    // il level cap segue gli allenatori davvero battuti (utile anche con salvataggi importati)
+    while (run.capIndex < this.data.caps.length) {
+      const cap = this.data.caps[run.capIndex];
+      let ids = capKeyIds(cap);
+      // punto senza squadra (Trick House): si supera quando è battuto il boss successivo
+      if (!ids.length) ids = capKeyIds(this.data.caps[run.capIndex + 1] || { teams: [] });
+      if (!ids.length || !ids.some((id) => g.beaten.includes(id))) break;
+      N.advanceCap(run);
+      if (this.baselined && this.ticks > 3) {
+        const next = N.currentCap(run);
+        this.toast(run.capIndex >= this.data.caps.length ? 'Lega superata!' : `${cap.label} superato. Nuovo level cap: ${next.level}`);
+      }
+    }
+    return changed;
   }
 
   // ---------- squadra: evoluzioni, cadute, level cap ----------

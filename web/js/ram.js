@@ -32,6 +32,11 @@ const BATTLE_TYPE_WALLY_TUTORIAL = 1 << 9;
 // Tasca Poké Ball dentro SaveBlock1 (verificata su un salvataggio 1.3): voci [id, quantità cifrata].
 const SB1_BALL_POCKET = 0x0a50;
 const BALL_IDS = [1, 27]; // ITEM_POKE_BALL .. ITEM_CHERISH_BALL
+// Flag "allenatore battuto": bit (TRAINER_FLAGS_START + id) a partire da questo offset di SaveBlock1.
+// Ricavato da un salvataggio con 4 medaglie (17 allenatori noti, battuti e non) e coerente con 110 vittorie.
+const SB1_TRAINER_FLAGS = 0x19c4;
+const TRAINER_FLAGS_START = 0x500;
+const MAX_TRAINER_ID = 900;
 
 // Ordine dei 4 blocchi cifrati in base a personality % 24 (indice logico -> posizione).
 const ORDER = [
@@ -208,6 +213,14 @@ export function readGame(state, { withBoxes = false } = {}) {
     trainerBattle: inBattle && !!(battleFlags & BATTLE_TYPE_TRAINER),
     opponent: inBattle && battleFlags & BATTLE_TYPE_TRAINER ? mem.u16(ADDR.gTrainerBattleOpponent_A) : null,
     scripted: inBattle && !!(battleFlags & (BATTLE_TYPE_FIRST_BATTLE | BATTLE_TYPE_WALLY_TUTORIAL)),
+    beaten: (() => {
+      const out = [];
+      for (let id = 1; id < MAX_TRAINER_ID; id++) {
+        const n = TRAINER_FLAGS_START + id;
+        if ((mem.u8(sb1 + SB1_TRAINER_FLAGS + (n >> 3)) >> (n & 7)) & 1) out.push(id);
+      }
+      return out;
+    })(),
     hasBalls: (() => {
       const id = mem.u16(sb1 + SB1_BALL_POCKET);
       return id >= BALL_IDS[0] && id <= BALL_IDS[1];
