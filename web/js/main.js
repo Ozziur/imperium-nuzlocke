@@ -159,6 +159,7 @@ async function startRun(run) {
     persist: () => persistRun(),
     toast,
     onUpdate: onLiveUpdate,
+    onDeath: onBattleDeath,
   });
   app.live.start();
   updateSpeedBadge();
@@ -406,13 +407,18 @@ function guidePanel(run) {
   const w = N.walkthroughState(run);
   if (!w) return '';
   const cap = N.currentCap(run);
-  const pending = w.split.steps.filter((st) => !st.done && !st.o).slice(0, 3);
   const show = guideFilters();
-  const opt = w.split.steps.filter((st) => !st.done && st.o).length + w.split.items.filter((it) => !it.done && show[it.k]).length;
+  const pending = w.split.steps.filter((st) => !st.done && !st.o).slice(0, 3);
+  const optSteps = show.opt ? w.split.steps.filter((st) => !st.done && st.o) : [];
+  const area = app.live?.area;
+  const here = area ? w.all.flatMap((sp) => (sp.index <= w.current ? sp.items : [])).filter((it) => !it.done && show[it.k] && it.p && area.name.startsWith(it.p)) : [];
   const done = run.capIndex >= app.data.caps.length;
+  const short = (st) => st.t.replace(/^In fondo al percorso, a est:\s*/, '').split(/[,(]/)[0].trim();
   return `<div class="ph" data-go="guide"><b>${esc(w.split.title)}</b><small>${done ? 'Lega superata' : `prossimo boss: ${esc(cap.label)} · cap ${cap.level}`}</small></div>
-    ${pending.map((st) => `<div class="step" data-step="${st.id}"><span class="ck"></span><span class="stx"><b>${esc(st.p)}</b> ${esc(st.t)}</span></div>`).join('') || '<div class="step"><span class="stx">Passi principali completati: vai al boss!</span></div>'}
-    ${opt ? `<div class="more" data-go="guide">${opt} attività e oggetti facoltativi in questa parte →</div>` : ''}`;
+    <div class="glabel">Da fare</div>
+    ${pending.map((st) => `<div class="step" data-step="${st.id}"><span class="ck"></span><span class="stx"><b>${esc(st.p)}</b> ${esc(st.t)}</span></div>`).join('') || '<div class="step"><span class="stx">Obiettivi principali completati: vai al boss!</span></div>'}
+    ${optSteps.length ? `<div class="glabel opt" data-go="guide">Facoltativi</div><div class="optline" data-go="guide">${optSteps.map((st) => `<span class="ochip">${esc(short(st))} <i>${esc(st.p)}</i></span>`).join('')}</div>` : ''}
+    ${here.length ? `<div class="glabel item" data-go="guide">Da prendere qui</div><div class="optline" data-go="guide">${here.slice(0, 4).map((it) => `<span class="ochip">${esc(it.n)}${it.c ? ` <i>${esc(it.c)}</i>` : ''}</span>`).join('')}${here.length > 4 ? `<span class="ochip">+${here.length - 4}</span>` : ''}</div>` : ''}`;
 }
 
 // ---------- pannello di lotta ----------
@@ -512,6 +518,41 @@ $('#info').addEventListener('click', (e) => {
     pushView(app.live.area.name, (b) => areaView(b, id));
   } else openTracker(go);
 });
+
+// ---------- caduta in lotta: ritentare lo scontro ----------
+
+function onBattleDeath({ mon, mode }) {
+  const run = app.run;
+  const name = mon.nick || N.spName(mon.sid);
+  const retry = async () => {
+    if (app.live.retryBattle()) {
+      run.counters.retries = (run.counters.retries || 0) + 1;
+      await persistRun();
+      toast(`${name} è caduto: ricarico da prima dello scontro`, 2600);
+    }
+  };
+  if (mode === 'auto') return retry();
+  app.emu.pause();
+  app.controls?.releaseAll();
+  const card = $('#modal-card');
+  card.innerHTML = `<h2>${esc(name)} è caduto</h2>
+    <p class="hint">Puoi ritentare lo scontro da qualche secondo prima che iniziasse, oppure accettare la caduta e segnarlo nel cimitero.</p>
+    <div class="dialog-actions"><button class="btn danger" id="m-accept">Accetta la caduta</button><button class="btn primary" id="m-retry">Ritenta lo scontro</button></div>
+    <p class="hint">Ritentativi in questa run: ${run.counters.retries || 0}. Si cambia in Strumenti › Partita.</p>`;
+  $('#modal').hidden = false;
+  const close = () => {
+    $('#modal').hidden = true;
+    app.emu.resume();
+  };
+  $('#m-retry').onclick = async () => {
+    close();
+    await retry();
+  };
+  $('#m-accept').onclick = () => {
+    app.live.acceptDeath(mon.uid);
+    close();
+  };
+}
 
 // Aggiorna pannello e chip solo quando cambia qualcosa di visibile.
 let liveSig = '';
@@ -934,21 +975,44 @@ function guideView(body) {
   }
   const show = guideFilters();
   const chip = (k, label) => `<button class="fchip ${show[k] ? 'on' : ''}" data-filter="${k}">${label}</button>`;
-  const stepHtml = (st) => `<div class="step big ${st.done ? 'done' : ''}" data-step="${st.id}"><span class="ck"></span><span class="stx"><b>${esc(st.p)}</b> ${esc(st.t)}${st.o ? ' <span class="opt">facoltativo</span>' : ''}${st.x ? ` <span class="opt">${esc(st.x)}</span>` : ''}</span></div>`;
-  const itemHtml = (it) => `<div class="step big item-${it.k} ${it.done ? 'done' : ''}" data-step="${it.id}"><span class="ck"></span><span class="stx"><span class="ik">${ITEM_KIND[it.k]}</span> <b class="iname">${esc(it.n)}</b>${it.p ? ` · ${esc(it.p)}` : ''}${it.c ? ` <small>(${esc(it.c)})</small>` : ''}</span></div>`;
+  const check = (id, done, auto) => `<span class="ck" title="${auto ? 'Confermato dal gioco' : 'Tocca per segnare'}"></span>`;
+  const stepHtml = (st) => `<div class="step big ${st.done ? 'done' : ''}" data-step="${st.id}">${check(st.id, st.done, st.auto)}<span class="stx"><b>${esc(st.p)}</b> ${esc(st.t)}${st.auto ? ' <span class="auto">✓ dal gioco</span>' : ''}</span></div>`;
+  const optHtml = (st) => {
+    const rw = N.rewardsFor(st);
+    return `<div class="step big opt-step ${st.done ? 'done' : ''}" data-step="${st.id}">${check(st.id, st.done, st.auto)}<span class="stx"><b>${esc(st.p)}</b> ${esc(st.t)}${st.x ? ` <span class="opt">${esc(st.x)}</span>` : ''}${st.auto ? ' <span class="auto">✓ dal gioco</span>' : ''}
+      ${rw.length ? `<span class="reward">Premi: ${rw.map((it) => esc(it.n)).join(', ')}</span>` : ''}</span></div>`;
+  };
+  // oggetti raggruppati per luogo, ognuno spuntabile
+  const itemsHtml = (items) => {
+    const groups = {};
+    for (const it of items) (groups[it.p || 'Altro'] ??= []).push(it);
+    return Object.entries(groups)
+      .map(
+        ([place, list]) => `<div class="igroup"><div class="iplace">${esc(place)}</div>${list
+          .map((it) => `<div class="irow ${it.done ? 'done' : ''}" data-step="${it.id}"><span class="ck"></span><span class="ik k-${it.k}">${ITEM_KIND[it.k]}</span><b>${esc(it.n)}</b>${it.c ? `<small>${esc(it.c)}</small>` : ''}</div>`)
+          .join('')}</div>`,
+      )
+      .join('');
+  };
   body.innerHTML = `
     <div class="filters">${chip('opt', 'Attività facoltative')}${chip('tm', 'MT')}${chip('mega', 'Megapietre')}${chip('battle', 'Strumenti')}</div>
+    <p class="hint">I passi con "✓ dal gioco" si spuntano da soli; gli altri tocca a te. Se il gioco conferma un passo, quelli principali prima risultano fatti.</p>
     ${w.all
       .map((sp) => {
-        const steps = sp.steps.filter((st) => show.opt || !st.o);
+        const main = sp.steps.filter((st) => !st.o);
+        const opt = show.opt ? sp.steps.filter((st) => st.o) : [];
         const items = sp.items.filter((it) => show[it.k]);
-        if (!steps.length && !items.length) return '';
-        return `<div class="section-title">${sp.index === w.current ? '▶ ' : ''}${esc(sp.title)}</div>
-          <div class="list ${sp.index < w.current ? 'dim' : ''}">${steps.map(stepHtml).join('')}
-          ${items.length ? `<div class="sub-title">Oggetti disponibili</div>${items.map(itemHtml).join('')}` : ''}</div>`;
+        if (!main.length && !opt.length && !items.length) return '';
+        const left = items.filter((it) => !it.done).length;
+        return `<div class="gsplit ${sp.index === w.current ? 'current' : ''}"><div class="section-title">${sp.index === w.current ? '▶ ' : ''}${esc(sp.title)}</div>
+          <div class="${sp.index < w.current ? 'dim' : ''}">
+          ${main.length ? `<div class="sub-title">Obiettivi principali</div><div class="list">${main.map(stepHtml).join('')}</div>` : ''}
+          ${opt.length ? `<div class="sub-title opt">Facoltativi</div><div class="list">${opt.map(optHtml).join('')}</div>` : ''}
+          ${items.length ? `<div class="sub-title item">Oggetti (${left} da prendere)</div>${itemsHtml(items)}` : ''}
+          </div></div>`;
       })
       .join('')}
-    <p class="hint">Guida: riassunto della checklist ufficiale di emeraldimperium.info. Oggetti: foglio "Item and NPC Locations" della documentazione di Imperium, assegnati alla parte in cui diventano disponibili.</p>`;
+    <p class="hint">Guida: riassunto della checklist ufficiale di emeraldimperium.info. Oggetti: foglio "Item and NPC Locations" della documentazione di Imperium.</p>`;
   on(body, '[data-filter]', 'click', async (e, el) => {
     const k = el.dataset.filter;
     app.settings.guideShow = { ...show, [k]: !show[k] };
@@ -963,7 +1027,7 @@ function guideView(body) {
   });
   if (!sheet.scrolledToNext) {
     sheet.scrolledToNext = true;
-    requestAnimationFrame(() => body.querySelector('.list:not(.dim) .step:not(.done)')?.scrollIntoView({ block: 'center' }));
+    requestAnimationFrame(() => body.querySelector('.gsplit.current')?.scrollIntoView({ block: 'start' }));
   }
 }
 
@@ -987,6 +1051,9 @@ function rulesView(body) {
     ${toggleHtml('dupes', r.dupes, 'Clausola duplicati', 'Le famiglie già catturate vengono segnalate')}
     ${toggleHtml('shiny', r.shiny, 'Clausola shiny', 'Uno shiny si può sempre catturare')}
     ${toggleHtml('giftsFree', r.giftsFree, 'Regali liberi', 'Regali e statici non consumano la zona')}
+    <div class="section-title">Quando un Pokémon cade in lotta</div>
+    ${segHtml('retry', r.retry || 'ask', [['off', 'Registra la caduta'], ['ask', 'Chiedi'], ['auto', 'Ritenta subito']])}
+    <p class="hint">"Ritenta" ricarica il gioco da pochi secondi prima dello scontro e non registra la caduta. Ritentativi finora: ${run.counters.retries || 0}.</p>
     <div class="section-title">Caricamento stati</div>
     ${segHtml('loadState', r.loadState, ENF)}
     <p class="hint">"Conta" lo consente ma registra ogni ricaricamento (finora: ${run.counters.loads}).</p>
@@ -1129,6 +1196,8 @@ async function menuView(body) {
       <small id="vib-info">${esc(window.AndroidBridge?.vibrationInfo ? window.AndroidBridge.vibrationInfo() : 'Vibrazione del browser')}</small></div>
     <div class="field"><label>Volume</label><input type="range" id="vol" min="0" max="1.5" step="0.1" value="${app.settings.volume}"></div>
 
+    <div class="section-title">Lettura del gioco</div>
+    <div class="card" id="diag">${diagHtml()}</div>
     <div class="section-title">Gioco installato</div>
     <div class="card"><small>App ${esc(window.AndroidBridge?.version ? window.AndroidBridge.version() : 'web')}</small></div>
     <div class="card"><small>Emerald Imperium ${esc(install.version || '?')} · CRC ${esc(install.crc || '?')}</small></div>
@@ -1214,6 +1283,22 @@ async function runView(body, id) {
     }
     popView();
   });
+}
+
+function diagHtml() {
+  const l = app.live;
+  const g = l?.game;
+  if (!l) return '<small>Non attiva</small>';
+  const trn = (run) => (run.gameBeaten || []).filter((id) => app.data.trainers[id]).slice(-4).map((id) => app.data.trainers[id].n).join(', ');
+  const ago = l.lastRead ? Math.round((Date.now() - l.lastRead) / 1000) : null;
+  return `<small>
+    Ultima lettura: ${ago == null ? 'mai' : ago <= 2 ? 'ora' : `${ago} s fa`}<br>
+    Mappa: ${esc(l.mk || '—')} → ${esc(l.area?.name || 'nessuna zona')}<br>
+    Squadra: ${g?.party?.length ?? 0} · box: ${g?.boxes?.length ?? 0} · in lotta: ${g?.inBattle ? 'sì' : 'no'}<br>
+    Allenatori battuti: ${(app.run.gameBeaten || []).length}${(app.run.gameBeaten || []).length ? ` (ultimi: ${esc(trn(app.run))})` : ''}<br>
+    Oggetti posseduti: ${(app.run.ownedItems || []).length} · Poké Ball: ${g?.hasBalls ? 'sì' : 'no'}<br>
+    Level cap: ${app.run.capIndex + 1}/${app.data.caps.length}${l.lastError ? `<br><span style="color:var(--danger)">Errore: ${esc(l.lastError)}</span>` : ''}
+  </small>`;
 }
 
 function newRunView(opts = {}, body) {

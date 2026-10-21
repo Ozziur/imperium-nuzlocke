@@ -19,6 +19,7 @@ export const DEFAULT_RULES = {
   // Applicazione: 'allow' | 'warn' (consentito ma contato) | 'block'
   loadState: 'warn',
   rewind: 'block',
+  retry: 'ask', // alla caduta in lotta: 'off' | 'ask' | 'auto' (ricarica da prima dello scontro)
 };
 
 let data = null;
@@ -250,12 +251,24 @@ export function walkthroughState(run) {
   const done = run.walk || {};
   const owned = new Set(run.ownedItems || []);
   // i passi si considerano fatti nelle parti già superate; gli oggetti no, si spuntano solo a mano
-  const mark = (sp, k) => ({
-    ...sp,
-    index: k,
-    steps: sp.steps.map((st) => ({ ...st, done: k < idx || !!done[st.id] || stepAuto(run, st) })),
-    items: (sp.items || []).map((it) => ({ ...it, done: !!done[it.id] || (it.id != null && owned.has(it.id)) })),
-  });
+  const mark = (sp, k) => {
+    const auto = sp.steps.map((st) => stepAuto(run, st));
+    // la guida è lineare: se il gioco conferma un passo principale, quelli prima sono fatti
+    let last = -1;
+    sp.steps.forEach((st, i) => {
+      if (!st.o && (auto[i] || done[st.id])) last = i;
+    });
+    return {
+      ...sp,
+      index: k,
+      steps: sp.steps.map((st, i) => ({
+        ...st,
+        auto: auto[i],
+        done: k < idx || !!done[st.id] || auto[i] || (!st.o && i < last),
+      })),
+      items: (sp.items || []).map((it) => ({ ...it, done: !!done[it.id] || (it.id != null && owned.has(it.id)) })),
+    };
+  };
   return { split: mark(splits[idx], idx), all: splits.map(mark), current: idx };
 }
 
@@ -265,6 +278,14 @@ function stepAuto(run, st) {
   if (st.it && st.it.some((id) => (run.ownedItems || []).includes(id))) return true;
   if (st.party && (run.mons.length > 0 || (run.knownPids || []).length > 0)) return true;
   return false;
+}
+
+/** Premi di uno scontro facoltativo: oggetti della guida ottenuti battendo quella persona. */
+export function rewardsFor(step) {
+  const who = (step.t.match(/:\s*([A-Z][\w ]+?)(?:,|$)|^([A-Z][a-z]+)\b/) || [])[1] || (step.t.match(/\b(Roark|Candice|Gardenia|Fantina|Maylene|Wake|Byron|Volkner)\b/) || [])[1];
+  if (!who) return [];
+  const name = who.trim().split(' ')[0];
+  return data.walk.splits.flatMap((sp) => sp.items || []).filter((it) => it.c && it.c.includes(name));
 }
 
 export function toggleStep(run, id) {

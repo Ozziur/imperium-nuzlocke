@@ -14,9 +14,10 @@ export function capKeyIds(cap) {
 }
 
 export class Live {
-  constructor({ emu, data, maps, getRun, persist, toast, onUpdate }) {
-    Object.assign(this, { emu, data, maps, getRun, persist, toast, onUpdate });
+  constructor({ emu, data, maps, getRun, persist, toast, onUpdate, onDeath }) {
+    Object.assign(this, { emu, data, maps, getRun, persist, toast, onUpdate, onDeath });
     this.game = null; // ultima fotografia
+    this.history = []; // istantanee dello stato fuori dalla lotta (una al secondo)
     this.area = null; // zona attuale
     this.battle = null; // lotta in corso
     this.owned = new Map(); // pid -> mon (squadra + box)
@@ -63,12 +64,15 @@ export class Live {
     let g;
     try {
       const withBoxes = this.ticks % BOX_EVERY === 0 || this._forceBoxes;
-      g = readGame(this.emu.getStateBytes(), { withBoxes });
+      this._lastBytes = this.emu.getStateBytes();
+      g = readGame(this._lastBytes, { withBoxes });
       this._forceBoxes = false;
     } catch (e) {
+      this.lastError = `lettura: ${e.message}`;
       return;
     }
     this.ticks++;
+    this.lastRead = Date.now();
     if (!g.ready) return;
     const prev = this.game;
     if (!g.boxes && prev?.boxes) g.boxes = prev.boxes;
@@ -76,12 +80,28 @@ export class Live {
     this.mk = this.mapName(g);
     this.area = this.areaForMap(this.mk);
 
+    // istantanee recenti, per poter ritentare uno scontro da poco prima che inizi
+    if (!g.inBattle) {
+      this.history.push({ t: Date.now(), bytes: this._lastBytes });
+      if (this.history.length > 12) this.history.shift();
+    }
+
     let changed = false;
-    changed = this._battle(run, g, prev) || changed;
-    if (g.boxes) changed = this._owned(run, g) || changed;
-    changed = this._party(run, g) || changed;
-    changed = this._beaten(run, g) || changed;
-    changed = this._items(run, g) || changed;
+    const steps = [
+      ['lotta', () => this._battle(run, g, prev)],
+      ['catture', () => (g.boxes ? this._owned(run, g) : false)],
+      ['squadra', () => this._party(run, g)],
+      ['allenatori', () => this._beaten(run, g)],
+      ['oggetti', () => this._items(run, g)],
+    ];
+    for (const [name, fn] of steps) {
+      try {
+        changed = fn() || changed;
+      } catch (e) {
+        this.lastError = `${name}: ${e.message}`;
+        console.warn('live', name, e);
+      }
+    }
     const cs = this.capStatus(run);
     if (cs?.over.length && this._capWarned !== run.capIndex) {
       this._capWarned = run.capIndex;
@@ -104,6 +124,8 @@ export class Live {
         enemy: enemy && { pid: enemy.pid, sid: enemy.species, shiny: enemy.shiny, level: enemy.level },
         // gli incontri contano solo con delle Poké Ball nello zaino e fuori dalle lotte guidate
         counts: g.hasBalls && !g.scripted,
+        preState: this._preBattleState(),
+        handled: new Set(),
         opponent: g.opponent,
       };
       if (!g.trainerBattle && enemy && this.area && run.rules.nuzlocke) {
@@ -126,6 +148,32 @@ export class Live {
       this._pendingEnd = null;
     }
     return changed;
+  }
+
+  /** Stato di circa 5 secondi prima dell'inizio della lotta (o il più vecchio disponibile). */
+  _preBattleState() {
+    const target = Date.now() - 6000;
+    const older = this.history.filter((h) => h.t <= target);
+    const pick = older.length ? older[older.length - 1] : this.history[0];
+    return pick?.bytes || null;
+  }
+
+  /** Accetta la caduta: verrà registrata alla prossima lettura. */
+  acceptDeath(uid) {
+    if (!this.battle) return;
+    this.battle.accepted ??= new Set();
+    this.battle.accepted.add(uid);
+  }
+
+  /** Riporta il gioco a prima dello scontro in corso. */
+  retryBattle() {
+    const b = this.battle;
+    if (!b?.preState) return false;
+    this.emu._loadStateBytes(b.preState);
+    this.battle = null;
+    this._pendingEnd = null;
+    this.history = [];
+    return true;
   }
 
   _battleEnded(run, g, b) {
@@ -305,6 +353,14 @@ export class Live {
       }
       if (run.rules.nuzlocke && m.alive && real.maxHp > 0 && real.hp === 0) {
         const cause = this.battle?.trainer ? 'lotta contro allenatore' : this.battle?.enemy ? `${N.spName(this.battle.enemy.sid)} selvatico` : '';
+        const mode = run.rules.retry || 'ask';
+        // ritentare lo scontro: la morte resta in sospeso finché non decidi
+        if (g.inBattle && this.battle?.preState && mode !== 'off' && !this.battle.handled.has(m.uid)) {
+          this.battle.handled.add(m.uid);
+          this.onDeath?.({ mon: m, cause, mode });
+          return changed;
+        }
+        if (g.inBattle && this.battle?.handled.has(m.uid) && !this.battle.accepted?.has(m.uid)) continue;
         N.killMon(run, m.uid, cause);
         this.toast(`${m.nick || N.spName(m.sid)} è esausto: segnato nel cimitero`);
         changed = true;
