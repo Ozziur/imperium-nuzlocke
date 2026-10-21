@@ -217,12 +217,21 @@ export function advanceCap(run) {
   }
 }
 
+/** Variante del rivale dedotta dagli scontri già vinti (es. "Rival May Route 103 Torchic"). */
+export function inferVariant(run) {
+  for (const id of run.gameBeaten || []) {
+    const m = (data.trainers?.[id]?.n || '').match(/^Rival (Brendan|May) .*\b(Treecko|Torchic|Mudkip)$/);
+    if (m) return { rival: m[1], starter: m[2] };
+  }
+  return { rival: '', starter: '' };
+}
+
 /** Squadre del boss filtrate in base al rivale e allo starter scelti nella run. */
 export function bossTeams(run, cap) {
   const teams = cap.teams;
   const rivalTeams = teams.filter((t) => /Rival (Brendan|May)/.test(t.name));
   if (!rivalTeams.length) return teams;
-  const { rival = '', starter = '' } = run.variant || {};
+  const { rival = '', starter = '' } = run.variant?.rival || run.variant?.starter ? run.variant : inferVariant(run);
   const pick = rivalTeams.filter((t) => t.name.includes(rival) && t.name.includes(starter));
   return pick.length ? pick : rivalTeams;
 }

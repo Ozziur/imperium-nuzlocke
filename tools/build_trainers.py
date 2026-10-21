@@ -68,9 +68,17 @@ for tid, t in trainers.items():
                 if p["sp"] == base:
                     p["mega"] = sp_name
             continue
-        packed.append({"sp": sp_name, "sid": sid_of(sp_name), "lv": st.get("level"), "item": st.get("item"),
+        lv = st.get("level")
+        try:
+            lv = int(lv)
+        except (TypeError, ValueError):
+            lv = None
+        packed.append({"sp": sp_name, "sid": sid_of(sp_name), "lv": lv, "item": st.get("item"),
                        "ab": st.get("ability"), "nat": st.get("nature"),
-                       "mv": [move_id.get(norm(x)) or x for x in st.get("moves", [])]})
+                       "mv": [move_id.get(norm(x)) or x for x in st.get("moves", [])],
+                       # IV ed EV nell'ordine PS, Att, Dif, AttSp, DifSp, Vel (servono a stimare statistiche e danni)
+                       "iv": [st.get("ivs", {}).get(k, 31) for k in ("hp", "at", "df", "sa", "sd", "sp")],
+                       "ev": [st.get("evs", {}).get(k, 0) for k in ("hp", "at", "df", "sa", "sd", "sp")]})
     out_trainers[tid] = {"n": t["n"], "d": t["d"], "m": [{k: v for k, v in p.items() if v not in (None, "", [])} for p in packed]}
 
 # ---------- scontri importanti dal foglio ----------

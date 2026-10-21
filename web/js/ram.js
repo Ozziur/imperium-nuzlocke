@@ -157,6 +157,8 @@ function decodePartyMon(mem, addr) {
   m.level = mem.u8(addr + 0x54);
   m.hp = mem.u16(addr + 0x56);
   m.maxHp = mem.u16(addr + 0x58);
+  // statistiche reali: PS, Att, Dif, AttSp, DifSp, Vel
+  m.stats = [m.maxHp, mem.u16(addr + 0x5a), mem.u16(addr + 0x5c), mem.u16(addr + 0x60), mem.u16(addr + 0x62), mem.u16(addr + 0x5e)];
   return m;
 }
 

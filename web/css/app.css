@@ -353,3 +353,16 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--accent); ou
 .irow.done b { color: var(--muted); text-decoration: line-through; }
 .irow small { color: var(--muted); width: 100%; padding-left: 20px; font-size: 12px; }
 .ik.k-tm { color: #8fb4ff; } .ik.k-mega { color: #d983b0; } .ik.k-battle { color: var(--warn); }
+
+/* consigliere */
+.chips-wrap { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+.chips-wrap small { color: inherit; opacity: .85; font-weight: 600; }
+.answers { margin-top: 8px; display: flex; flex-direction: column; gap: 6px; }
+.ans { background: var(--panel-2); border-radius: 8px; padding: 6px 8px; font-size: 13px; }
+.ans small { font-size: 12px; } .ans .up { color: var(--accent); } .ans .down { color: var(--danger); }
+.ans-row { color: var(--muted); font-size: 12px; margin-top: 2px; }
+.ans-row i { font-style: normal; color: var(--text); font-weight: 600; }
+/* swipe */
+@keyframes sl { from { transform: translateX(24px); opacity: .3; } }
+@keyframes sr { from { transform: translateX(-24px); opacity: .3; } }
+.sheet-body.slide-l { animation: sl .16s ease-out; } .sheet-body.slide-r { animation: sr .16s ease-out; }

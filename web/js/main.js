@@ -5,6 +5,7 @@ import * as P from './patcher.js';
 import * as N from './nuzlocke.js';
 import { Live } from './live.js';
 import * as T from './types.js';
+import * as A from './advisor.js';
 
 const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -312,6 +313,36 @@ $('#sheet').addEventListener('click', (e) => {
     render();
   }
 });
+
+// Scorrimento orizzontale nel pannello: scheda precedente / successiva.
+(() => {
+  const body = $('#sheet-body');
+  let x0 = null;
+  let y0 = 0;
+  body.addEventListener('touchstart', (e) => {
+    if (e.touches.length !== 1 || e.target.closest('input, select, textarea')) return (x0 = null);
+    x0 = e.touches[0].clientX;
+    y0 = e.touches[0].clientY;
+  }, { passive: true });
+  body.addEventListener('touchend', (e) => {
+    if (x0 == null || !sheet.tabs || sheet.stack.length !== 1) return;
+    const dx = e.changedTouches[0].clientX - x0;
+    const dy = e.changedTouches[0].clientY - y0;
+    x0 = null;
+    if (Math.abs(dx) < 70 || Math.abs(dx) < Math.abs(dy) * 1.8) return;
+    const ids = sheet.tabs.map(([id]) => id);
+    const k = ids.indexOf(sheet.tab) + (dx < 0 ? 1 : -1);
+    if (k < 0 || k >= ids.length) return;
+    sheet.tab = ids[k];
+    sheet.scrolledToNext = false;
+    sheet.stack = [{ title: 'Strumenti', view: trackerView }];
+    body.classList.remove('slide-l', 'slide-r');
+    void body.offsetWidth;
+    body.classList.add(dx < 0 ? 'slide-l' : 'slide-r');
+    render();
+    $(`#sheet-tabs [data-tab="${sheet.tab}"]`)?.scrollIntoView({ inline: 'center', block: 'nearest' });
+  }, { passive: true });
+})();
 
 window.onAndroidBack = () => {
   if (!$('#sheet').hidden) {
@@ -861,7 +892,7 @@ function bossView(body, index = null) {
       <span class="chip">Level cap ${cap.level}</span></div>
       ${i === run.capIndex && !done ? '<button class="btn primary block" id="btn-beat" style="margin-top:10px">Boss superato: passa al prossimo</button>' : ''}
     </div>
-    ${index == null ? `<button class="btn block" id="btn-capteam" style="margin-bottom:8px">Squadra del boss del level cap</button>
+    ${index == null ? `<div class="row" style="margin-bottom:8px"><button class="btn grow" id="btn-capteam">Squadra del boss</button><button class="btn primary grow" id="btn-capadv">Come affrontarlo</button></div>
     <input type="search" id="tr-search" placeholder="Cerca un allenatore tra tutti gli 859…" autocomplete="off">
     <div class="list" id="tr-results" style="margin-top:6px"></div>` : ''}
     ${index != null ? (teams.length ? teams.map(teamHtml).join('') : '<p class="hint">Nessuna squadra registrata per questo punto: vale solo il level cap.</p>') : ''}
@@ -901,6 +932,9 @@ function bossView(body, index = null) {
   });
   on(body, '[data-cap]', 'click', (e, el) => pushView(caps[el.dataset.cap].label, (b) => bossView(b, Number(el.dataset.cap))));
   $('#btn-capteam', body)?.addEventListener('click', () => pushView(cap.label, (b) => bossView(b, i)));
+  $('#btn-capadv', body)?.addEventListener('click', () =>
+    pushView('Come affrontarlo', (b) => advisorView(b, teams.map((t) => ({ name: t.name, mons: t.mons })), cap.label)),
+  );
 }
 
 /** Tutti gli scontri importanti, divisi per parte della guida. */
@@ -943,8 +977,75 @@ function trainerSearchHtml(q) {
 }
 
 function trainersView(body, ids, title = '') {
+  if (ids.length > 2) {
+    const v = app.run.variant?.rival || app.run.variant?.starter ? app.run.variant : N.inferVariant(app.run);
+    const ok = (id) => (app.data.trainers[id]?.n || '').includes(v.rival || '~') && (app.data.trainers[id]?.n || '').includes(v.starter || '~');
+    ids = [...ids].sort((a, b) => ok(b) - ok(a));
+  }
   const teams = ids.map((id) => ({ name: app.data.trainers[id]?.n || `#${id}`, double: app.data.trainers[id]?.d, mons: app.data.trainers[id]?.m || [] }));
-  body.innerHTML = `${title ? `<p class="hint">${esc(title)}</p>` : ''}${ids.length > 2 ? '<p class="hint">Più varianti possibili: dipende dallo starter scelto.</p>' : ''}${teams.map(teamHtml).join('')}`;
+  body.innerHTML = `<button class="btn primary block" id="btn-advise" style="margin-bottom:8px">Come affrontarlo: squadra consigliata</button>
+    ${title ? `<p class="hint">${esc(title)}</p>` : ''}${ids.length > 2 ? '<p class="hint">Più varianti possibili: dipende dallo starter scelto.</p>' : ''}${teams.map(teamHtml).join('')}`;
+  $('#btn-advise', body).addEventListener('click', () => pushView('Come affrontarlo', (b) => advisorView(b, teams, title || teams[0]?.name)));
+}
+
+// ---------- consigliere di squadra ----------
+
+function advisorView(body, teams, title) {
+  const run = app.run;
+  const g = app.live?.game;
+  const cap = N.currentCap(run)?.level || 100;
+  const top = Math.max(0, ...(g?.party || []).map((m) => m.level || 0)) || cap;
+  // più varianti del rivale: quella della tua partita (dedotta dagli scontri vinti), altrimenti la prima
+  const v = run.variant?.rival || run.variant?.starter ? run.variant : N.inferVariant(run);
+  const mine0 = teams.filter((t) => t.name.includes(v.rival || '') && t.name.includes(v.starter || ''));
+  const useTeams = teams.length > 2 ? [mine0.length && mine0.length < teams.length ? mine0[0] : teams[0]] : teams;
+  const variantNote = teams.length > 2 ? (mine0.length && mine0.length < teams.length ? ` · variante: ${useTeams[0].name}` : ' · calcolato sulla prima variante') : '';
+  const foes = A.foeMons(useTeams, app.data, top);
+  const mine = A.myMons(g, run, app.data, cap);
+  const sum = A.teamSummary(foes, app.data);
+  const adv = mine.length ? A.advise(mine, foes, app.data) : null;
+  const tchip = (t, extra = '') => `<span class="type t-${t}">${t}</span>${extra}`;
+  const spd = (c) => (c.faster ? '<span class="up">▲ più veloce</span>' : c.mySpe === c.foeSpe ? '= stessa velocità' : '<span class="down">▼ più lento</span>');
+  body.innerHTML = `
+    <p class="hint">${esc(title || '')}${esc(variantNote)}. Stima indicativa: non considera strumenti, abilità (a parte le immunità), meteo, critici e cambi di statistica.</p>
+    ${
+      adv
+        ? `<div class="section-title">Squadra consigliata</div>
+      <div class="list">${adv.chosen
+        .map((i) => {
+          const me = mine[i];
+          const beats = adv.matrix[i].map((c, j) => (c.score > 20 ? foes[j].name : null)).filter(Boolean);
+          return `<div class="item"><div class="main"><b>${esc(me.name)} <small>Lv. ${me.level}${me.estimated ? ' (stima)' : ''} · ${me.inParty ? 'in squadra' : 'nel box'}</small></b>
+            <small>${beats.length ? `Buono contro: ${esc(beats.join(', '))}` : 'Copertura di supporto'}</small></div>${typesHtml(me.sid)}</div>`;
+        })
+        .join('')}</div>`
+        : '<p class="hint">Nessun Pokémon tuo letto dal gioco: vedi solo i consigli sui tipi.</p>'
+    }
+    <div class="section-title">Punti deboli dell'avversario</div>
+    <div class="card"><div class="chips-wrap">${sum.weak.map((w) => tchip(w.type, ` <small>${w.hit}/${foes.length}</small>`)).join(' ')}</div>
+      <small>Tipi di attacco superefficaci contro più Pokémon della squadra (su ${foes.length}).</small></div>
+    <div class="section-title">Attacchi che usa</div>
+    <div class="card"><div class="chips-wrap">${sum.attackTypes.map(([t, n]) => tchip(t, ` <small>×${n}</small>`)).join(' ')}</div>
+      <small>Resistono meglio: ${sum.resists.map((r) => esc(r.type)).join(', ') || '—'}</small></div>
+    <div class="section-title">Pokémon per Pokémon</div>
+    ${foes
+      .map((f, j) => {
+        const ab = f.ability ? ` · ${esc(f.ability)}` : '';
+        const answers = adv
+          ? adv.answers[j]
+              .map((a) => {
+                const me = mine[a.i];
+                return `<div class="ans"><b>${esc(me.name)}</b> <small>${spd(a)}</small>
+              <div class="ans-row">↗ ${a.off ? `${esc(a.off.name)} ${A.pctRange(a.off)} <i>${A.koLabel(a.off)}</i>` : 'nessuna mossa utile'}</div>
+              <div class="ans-row">↘ ${a.def ? `subisce ${A.pctRange(a.def)} da ${esc(a.def.name)} <i>${A.koLabel(a.def)}</i>` : 'non subisce danni rilevanti'}</div></div>`;
+              })
+              .join('')
+          : '';
+        return `<div class="boss-mon"><div class="top"><b>${esc(f.name)}</b>${typesHtml(f.sid)}<span class="grow"></span><small>Lv. ${f.level}${f.dynamic ? ' (dinamico)' : ''} · Vel ${f.stats[5]}</small></div>
+          <div class="meta">${f.item ? `@ ${esc(f.item)}` : ''}${ab}${f.mega ? ` · megaevolve in ${esc(f.mega)}` : ''}</div>
+          ${answers ? `<div class="answers">${answers}</div>` : ''}</div>`;
+      })
+      .join('')}`;
 }
 
 function teamHtml(t) {
