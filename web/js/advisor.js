@@ -44,8 +44,9 @@ const hitsToKo = (pct) => (pct <= 0 ? Infinity : Math.ceil(100 / pct));
 function bestMove(att, def, data) {
   let best = null;
   for (const id of att.moves) {
-    const mv = data.moves[id];
+    let mv = data.moves[id];
     if (!mv) continue;
+    if (mv[0] === 'Hidden Power' && att.hpType) mv = [`Hidden Power ${att.hpType}`, att.hpType, ...mv.slice(2)];
     const d = damage(att, mv, def, data);
     if (d && (!best || d.max > best.max)) best = { ...d, id, name: mv[0], type: mv[1] };
   }
@@ -74,6 +75,7 @@ export function foeMons(teams, data, topLevel) {
         stats: calcStats(sp.s, lv, m.iv, m.ev, nat),
         moves,
         mega: m.mega,
+        hpType: m.hp || '',
         trainer: t.name || t.n,
       });
     }
@@ -119,7 +121,10 @@ export function teamSummary(foes, data) {
   for (const f of foes)
     for (const id of f.moves) {
       const mv = data.moves[id];
-      if (mv && mv[2] !== 2) attack[mv[1]] = (attack[mv[1]] || 0) + 1;
+      if (mv && mv[2] !== 2) {
+        const type = mv[0] === 'Hidden Power' && f.hpType ? f.hpType : mv[1];
+        attack[type] = (attack[type] || 0) + 1;
+      }
     }
   const attackTypes = Object.entries(attack).sort((a, b) => b[1] - a[1]);
   // tipi difensivi che resistono (×½ o meno) a più attacchi avversari

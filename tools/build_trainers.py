@@ -180,6 +180,62 @@ for f in fights:
     opt = bool(re.search(r"optional", title, re.I)) or any(re.search(r"\b" + s + r"\b", title) for s in SINNOH)
     bosses.append({"s": f["split"], "t": title, "ids": ids, "o": opt})
 
+# ---------- dettagli in più dal foglio "Boss Battles" ----------
+# Il foglio indica il tipo di Hidden Power e l'abilità delle forme Mega/Primal, che il calcolatore non ha.
+EN_TYPES = {"normal": "Normale", "fighting": "Lotta", "flying": "Volante", "poison": "Veleno", "ground": "Terra", "rock": "Roccia",
+            "bug": "Coleottero", "ghost": "Spettro", "steel": "Acciaio", "fire": "Fuoco", "water": "Acqua", "grass": "Erba",
+            "electric": "Elettro", "psychic": "Psico", "ice": "Ghiaccio", "dragon": "Drago", "dark": "Buio", "fairy": "Folletto"}
+sheet_mons = []
+for ws in wb.worksheets:
+    if ws.title not in SHEET_SPLIT and ws.title != "Sinnoh Gyms Only":
+        continue
+    rows = [[(str(c).strip() if c is not None else "") for c in r] for r in ws.iter_rows(values_only=True)]
+    for i, r in enumerate(rows):
+        if "Nature:" not in r:
+            continue
+        k = i
+        while k > 0 and "Pokemon:" not in rows[k]:
+            k -= 1
+        sprow = rows[k - 3] if k >= 3 else []
+        for cj in range(r.index("Nature:") + 1, len(r)):
+            v = r[cj]
+            if not v or v.startswith(("HP:", "Atk", "Def", "SpA", "SpD", "Spe")) or re.match(r"^[\d.]+$", v):
+                continue
+            g = lambda row: row[cj] if cj < len(row) else ""
+            sp = (sprow[cj + 3] if cj + 3 < len(sprow) else "").split("/")[-1].split("\n")[-1].strip()
+            mv = [rr[cj][1:].strip() for rr in rows[i + 3:i + 8] if cj < len(rr) and rr[cj].startswith("-")]
+            sheet_mons.append({"sp": sp, "nat": v, "ab": g(rows[i + 1]), "mv": mv})
+
+by_species = {}
+for tid, t in out_trainers.items():
+    for m in t["m"]:
+        by_species.setdefault(norm(m["sp"]), []).append(m)
+        if m.get("mega"):
+            by_species.setdefault(norm(m["mega"]), []).append(m)
+mvn = lambda x: data["moves"][str(x)][0] if isinstance(x, int) and str(x) in data["moves"] else str(x)
+added_hp = added_ab = 0
+for sm in sheet_mons:
+    cands = by_species.get(norm(sm["sp"]), [])
+    best = None
+    for m in cands:
+        have = {norm(mvn(x)) for x in m.get("mv", [])}
+        sc = (norm(m.get("nat", "")) == norm(sm["nat"])) + len(have & {norm(x) for x in sm["mv"]})
+        if not best or sc > best[0]:
+            best = (sc, m)
+    if not best or best[0] < 2:
+        continue
+    m = best[1]
+    for x in sm["mv"]:
+        hp = re.match(r"(?:HP|Hidden Power)\s*([A-Za-z]+)$", x)
+        if hp and hp.group(1).lower() in EN_TYPES:
+            m["hp"] = EN_TYPES[hp.group(1).lower()]
+            added_hp += 1
+    is_mega = norm(sm["sp"]) == norm(m.get("mega", ""))
+    if is_mega and sm["ab"]:
+        m["mab"] = sm["ab"].split("/")[0].strip()
+        added_ab += 1
+print("dal foglio: tipo di Hidden Power", added_hp, "· abilità Mega/Primal", added_ab)
+
 json.dump({"trainers": out_trainers, "bosses": bosses}, open(OUT, "w", encoding="utf8"), ensure_ascii=False, separators=(",", ":"))
 print(len(out_trainers), "allenatori,", len(bosses), "scontri importanti")
 for b in bosses:

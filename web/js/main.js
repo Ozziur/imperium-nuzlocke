@@ -378,11 +378,15 @@ const typesHtml = (sid) => {
 const CAT = ['Fisico', 'Speciale', 'Stato'];
 
 /** Riga di una mossa: tipo, categoria e statistiche; tocca per la descrizione. */
-function moveHtml(idOrName, level = null) {
+function moveHtml(idOrName, level = null, hpType = '') {
   const id = typeof idOrName === 'number' ? idOrName : app.data.moveIdByName(idOrName);
   const m = app.data.moves[id];
   if (!m) return `<div class="move"><div class="mv-top"><b>${esc(idOrName)}</b></div></div>`;
-  const [name, type, cat, pow, acc, pp, desc] = m;
+  let [name, type, cat, pow, acc, pp, desc] = m;
+  if (name === 'Hidden Power' && hpType) {
+    name = `Hidden Power (${hpType})`;
+    type = hpType;
+  }
   return `<div class="move"><div class="mv-top">${level != null ? `<span class="mv-lv">${level ? `Lv. ${level}` : 'Evo'}</span>` : ''}<b>${esc(name)}</b><span class="type t-${type}">${type}</span><span class="cat c${cat}">${CAT[cat] || ''}</span></div>
     <div class="mv-stats">Potenza ${pow || '—'} · Precisione ${acc ? acc + '%' : '—'} · PP ${pp}</div>
     <div class="mv-desc">${esc(desc)}</div></div>`;
@@ -515,7 +519,15 @@ function battlerCard(b, targets, foe, g) {
       if (!id) return '';
       const m = app.data.moves[id];
       if (!m) return '';
-      const [name, type, cat, pow] = m;
+      let [name, type, cat, pow] = m;
+      if (name === 'Hidden Power' && foe && g?.trainerBattle) {
+        // il tipo di Hidden Power dell'avversario viene dai dati del foglio "Boss Battles"
+        const tm = (app.data.trainers[g.opponent]?.m || []).find((x) => x.sid === b.species || (x.mega && N.sp(b.species)?.n.startsWith(x.sp.split('-')[0])));
+        if (tm?.hp) {
+          name = `Hidden Power (${tm.hp})`;
+          type = tm.hp;
+        }
+      }
       const mults = cat === 2 ? [] : targets.map((t) => T.effectiveness(typeIdx(type), t.types, (app.data.abilities[t.ability] || [''])[0]));
       const best = mults.length ? Math.max(...mults) : 1;
       const cls = cat === 2 ? 'es' : best === 0 ? 'e0' : best >= 2 ? 'e2' : best < 1 ? 'eh' : 'e1';
@@ -1054,9 +1066,9 @@ function teamHtml(t) {
     ${t.mons
       .map(
         (m) => `<div class="boss-mon"><div class="top"><b>${esc(m.sp)}</b>${m.sid ? typesHtml(m.sid) : ''}<span class="grow"></span><small>${lvl(m.lv)}</small></div>
-        ${m.mega ? `<div class="mega">Megaevolve: ${esc(m.mega)}</div>` : ''}
+        ${m.mega ? `<div class="mega">Megaevolve: ${esc(m.mega)}${m.mab ? ` · abilità ${esc(m.mab)}` : ''}</div>` : ''}
         <div class="meta">${[m.item && `@ ${esc(m.item)}`, m.ab && esc(m.ab), m.nat && esc(m.nat)].filter(Boolean).join(' · ')}</div>
-        ${m.mv?.length ? `<div class="moves">${m.mv.map((x) => moveHtml(x)).join('')}</div>` : ''}</div>`,
+        ${m.mv?.length ? `<div class="moves">${m.mv.map((x) => moveHtml(x, null, m.hp)).join('')}</div>` : ''}</div>`,
       )
       .join('')}`;
 }

@@ -222,7 +222,7 @@ public class MainActivity extends ComponentActivity {
 
         @JavascriptInterface
         public String version() {
-            return "0.11.0";
+            return "0.11.1";
         }
     }
 
